@@ -37,7 +37,7 @@ jobs:
         with:
           type: 'zip'
           filename: "cbr-tools-extra-${{ env.date }}-win64.zip"
-          path: dist
+          path: dist/cbrtools
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
