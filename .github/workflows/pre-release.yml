@@ -36,8 +36,8 @@ jobs:
         uses: thedoctor0/zip-release@0.7.1
         with:
           type: 'zip'
-          directory: dist
           filename: "cbr-tools-extra-${{ env.date }}-win64.zip"
+          path: dist
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
