@@ -1,0 +1,11 @@
+{
+    "include": [
+      "cbr"
+    ],
+  
+    "ignore": [
+    ],
+
+    "reportFunctionMemberAccess" : "error",
+    "reportUnusedImport": "error"
+}  
