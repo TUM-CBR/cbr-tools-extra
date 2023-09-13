@@ -1,11 +1,26 @@
+from Bio.Data import IUPACData
 import json
 from os import path
 import re
 from typing import List, NamedTuple, Self, TextIO
 
+from . import sequences
+
 ROTAMER_RE = re.compile(r"rot(?P<rot>\d+)")
 
 POSITON_RE = re.compile(r"(resi\s+)?(?P<position>\d+)")
+
+RESIDUES_3TO1 = dict(
+    (key.upper(), value.upper())
+    for key,value in IUPACData.protein_letters_3to1.items()
+)
+
+def three_to_one(three_letter_code : str) -> str:
+
+    if len(three_letter_code) == 1:
+        return three_letter_code.upper()
+
+    return RESIDUES_3TO1.get(three_letter_code.upper(), "X")
 
 class Mutation(NamedTuple):
     position : int
@@ -17,12 +32,12 @@ class Mutation(NamedTuple):
         return "%s%i%s" % (self.original, self.position, self.mutation)
 
     @staticmethod
-    def from_json(
+    def from_json_dict(
         json_dict : dict,
         sequence : str
     ) -> 'Mutation':
 
-        mutation_str = json_dict['position']
+        mutation_str = json_dict['selection']
         position_match = POSITON_RE.match(mutation_str)
 
         if position_match is None:
@@ -32,29 +47,15 @@ class Mutation(NamedTuple):
 
         return Mutation(
             position=position,
-            mutation=json_dict['mutation'],
-            original=sequence[position]
+            mutation=three_to_one(json_dict['mutation']),
+            original=sequence[position-1]
         )
 
 class MutationResult(NamedTuple):
     structure_name : str
     mutations : List[Mutation]
-    original_residue : str
-    mutation_position : int
-    new_reside : str
     mutated_structure_name : str
     i_rotamer : int
-
-    def to_json_dict(self):
-        return {
-            'structure_name': self.structure_name,
-            'original_residue': self.original_residue,
-            'mutation_position': self.mutation_position,
-            'new_reside': self.new_reside,
-            'mutated_structure_name': self.mutated_structure_name
-        }
-
-
 
     @property
     def mutation_str(self):
@@ -62,7 +63,17 @@ class MutationResult(NamedTuple):
 
     @staticmethod
     def from_json_dict(json_dict : dict) -> 'MutationResult':
-        return MutationResult(**json_dict)
+
+        name = json_dict['name']
+        seq = sequences.get_sequence(name)
+        mutations = [Mutation.from_json_dict(m, seq) for m in json_dict['mutations']]
+
+        return MutationResult(
+            structure_name=name[0:4],
+            mutations=mutations,
+            mutated_structure_name=name,
+            i_rotamer=json_dict['rotamer']
+        )
 
     @staticmethod
     def from_stream(stream : TextIO) -> 'MutationResult':

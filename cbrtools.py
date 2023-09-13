@@ -1,3 +1,3 @@
-from cbr.extra.main import main
+from cbrextra.main import main
 
 main()

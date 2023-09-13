@@ -126,8 +126,9 @@ class EnergyCsvStreams:
                 )
 
             return self
-        finally:
+        except Exception:
             self.__exit__()
+            raise
 
     def __exit__(self, *args, **kwargs):
 
@@ -174,7 +175,8 @@ class ParseEnergyRunsOperation(Operation):
 
         result_directory = result_directory or directory
         runs = EnergyMinimizationRun.from_folders(directory)
+        summarized = EnergyMinimizationCombined.summarize_results(runs)
 
         with EnergyCsvStreams(result_directory) as csv_energy:
-            for result in EnergyMinimizationCombined.summarize_results(runs):
+            for result in summarized:
                 csv_energy.write(result)

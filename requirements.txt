@@ -1,3 +1,8 @@
 altgraph==0.17.3
+biopython==1.81
+docopt==0.6.2
+nodeenv==1.8.0
+numpy==1.25.2
 pyinstaller==5.13.2
 pyinstaller-hooks-contrib==2023.8
+pyright==1.1.326

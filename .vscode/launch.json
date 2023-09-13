@@ -14,7 +14,7 @@
             "args": [
                 "energy",
                 "parseresults",
-                "${workspaceFolder}/workspace/ProThermDB/1csp.multirot.solvated"
+                "${workspaceFolder}/workspace/ProThermDB/1csp.multirot.solvated.micro"
             ]
         }
     ]
