@@ -1,14 +1,14 @@
 from abc import abstractmethod, ABC
 from enum import Enum
-from typing import NamedTuple, Self
+from typing import Dict, NamedTuple, Self
 
 class Context(NamedTuple):
-
     cmdargs : dict
 
 class ResultStatus(Enum):
     SUCCESS = 0
     NOT_REQUESTED = 1
+    INVALID_ARGUMENTS = 2
 
 class Result(NamedTuple):
     status :  ResultStatus
@@ -33,6 +33,10 @@ class Result(NamedTuple):
     def not_requested():
         return Result(status=ResultStatus.NOT_REQUESTED)
 
+    @staticmethod
+    def invalid_arguments(missing : Dict[str, str]):
+        return Result(status=ResultStatus.INVALID_ARGUMENTS)
+
 class Module(ABC):
 
     @property
@@ -42,6 +46,9 @@ class Module(ABC):
     @property
     def not_requested(self : Self) -> Result:
         return Result.not_requested()
+
+    def invalid_arguments(self : Self, missing: Dict[str, str]) -> Result:
+        return Result.invalid_arguments(missing)
 
     @abstractmethod
     def main(self, context : Context) -> Result:

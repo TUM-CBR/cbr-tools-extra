@@ -1,96 +1,41 @@
-from Bio.Seq import Seq
-from pydantic import BaseModel
-from typing import Dict, Iterable, List, Literal, NamedTuple, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
+from .data import DesignPrimersArgs, DesignPrimersResult, DesignPrimersResults, NamedTuple, PrimerOrganism, PrimerResult
 from .melting_temp import MeltingTemp
 
 CODON_SIZE = 3
 
-PrimerOrganism = Literal['E_COLI', 'P_PASTORIS']
-
-class PrimerResult(NamedTuple):
-    left_primer : str
-    tm_left : float
-    right_primer : str
-    tm_right : float
-    inner_seq : str
-    tm_all : Optional[float]
-    tm_error : Optional[str]
-
-    def __get_penalty(self, target_tm : float, primer_tm : float):
-        return abs(target_tm - primer_tm)
-
-    def __get_error(
-        self,
-        target_tm : float,
-        w_target_tm : float,
-        primers_tm : float,
-        w_primers_tm : float,
-        w_tm_delta : float
-    ) -> float:
-
-        return sum([
-            w_primers_tm*self.__get_penalty(primers_tm, self.tm_left),
-            w_primers_tm*self.__get_penalty(primers_tm, self.tm_right),
-            w_tm_delta*abs(self.tm_left - self.tm_right),
-            w_target_tm*(self.tm_all and abs(self.tm_all - target_tm) or 0)
-        ])
-
-    @staticmethod
-    def choose_best(
-        opt1 : 'PrimerResult',
-        opt2 : 'PrimerResult',
-        target_tm : float,
-        w_target_tm : float,
-        primers_tm : float,
-        w_primers_tm : float,
-        w_tm_delta : float
-    ) -> 'PrimerResult':
-        score_opt1 = opt1.__get_error(
-            target_tm,
-            w_target_tm,
-            primers_tm,
-            w_primers_tm,
-            w_tm_delta
-        )
-        score_opt2 = opt2.__get_error(
-            target_tm,
-            w_target_tm,
-            primers_tm,
-            w_primers_tm,
-            w_tm_delta
-        )
-        if score_opt2 < score_opt1:
-            return opt2
-        else:
-            return opt1
-
-    @property
-    def c_left_primer(self):
-        return str(Seq(self.left_primer).complement())
-
-    @property
-    def c_right_primer(self):
-        return str(Seq(self.right_primer).complement())
-
-    @property
-    def c_inner(self):
-        return str(Seq(self.inner_seq).complement())
-
-DesignPrimersResult = Dict[str, List[PrimerResult]]
-DesignPrimersResults = Iterable[DesignPrimersResult]
-
-class DesignPrimersArgs(BaseModel):
-    sequence : str
-    start : int
-    codon_count : int
-    min_length : int
-    max_length : int
-    organism : PrimerOrganism
+DEFAULT_DNA_CONC = 500
+DEFAULT_DNTP_CONC = 0.2
 
 class Operations:
-    class DesignPrimers(DesignPrimersArgs):
+    class DesignPrimers(NamedTuple):
         operations : 'Operations'
+        args : DesignPrimersArgs
+
+        @property
+        def organism(self) -> PrimerOrganism:
+            return self.args.organism
+
+        @property
+        def start(self) -> int:
+            return self.args.start
+
+        @property
+        def codon_count(self) -> int:
+            return self.args.codon_count
+
+        @property
+        def min_length(self) -> int:
+            return self.args.min_length
+
+        @property
+        def max_length(self) -> int:
+            return self.args.max_length
+
+        @property
+        def sequence(self) -> str:
+            return self.args.sequence
 
         @property
         def __step(self):
@@ -102,7 +47,9 @@ class Operations:
 
         def design_primers(self) -> DesignPrimersResults:
 
-            for i in range(self.start, self.start + self.codon_count, self.__step):
+            codon_count = self.start + self.codon_count*self.__step + self.__step
+
+            for i in range(self.start, codon_count, self.__step):
                 yield self.design_primer_at(i)
 
         def design_primer_at(self, position : int) -> DesignPrimersResult:
@@ -117,21 +64,15 @@ class Operations:
                         tm_right = tm_calc.oligo_tm(p_right)
 
                         seq = p_left + o_codon + p_right
-                        tm_error = None
+                        tm_all = tm_calc.oligo_tm(seq)
 
-                        try:
-                            tm_all = tm_calc.oligo_tm_mis(seq, {len(p_left): codon})
-                        except Exception as e:
-                            tm_all = None
-                            tm_error = str(e)
                         yield PrimerResult(
                             left_primer=p_left,
                             tm_left=tm_left,
                             right_primer=p_right,
                             tm_right=tm_right,
                             inner_seq=codon,
-                            tm_all=tm_all,
-                            tm_error=tm_error
+                            tm_all=tm_all
                         )
 
                 results[aa] = list(get_primers_for_codon())
@@ -160,9 +101,11 @@ class Operations:
             position : int,
         ) -> Iterable[Tuple[str, str, str]]:
             count = self.__step
+            min_length = self.min_length
+            max_length = self.max_length + 1
 
-            for i in range(self.min_length, self.max_length):
-                for j in range(self.min_length, self.max_length):
+            for i in range(min_length, max_length):
+                for j in range(min_length, max_length):
                     l_start = position - i
                     r_start = position + count
                     r_end = position + count + j
@@ -179,26 +122,30 @@ class Operations:
                             )
 
     def __init__(self, tm_calc : Optional[MeltingTemp] = None):
-        self.__tm_calc = tm_calc or MeltingTemp()
+        self.__tm_calc = \
+            tm_calc or \
+            MeltingTemp(
+                dna_conc=DEFAULT_DNA_CONC,
+                dntp_conc=DEFAULT_DNTP_CONC
+            )
 
     @property
     def tm_calc(self) -> MeltingTemp:
         return self.__tm_calc
 
-    def design_primers(
+    def __design_primers(
         self,
         args: DesignPrimersArgs
     ) -> DesignPrimersResults:
 
         return Operations.DesignPrimers(
-            sequence=args.sequence,
-            start=args.start,
-            codon_count=args.codon_count,
-            min_length=args.min_length,
-            max_length=args.max_length,
-            operations=self,
-            organism=args.organism,
+            args = args,
+            operations=self
         ).design_primers()
+
+    @staticmethod
+    def design_primers(args: DesignPrimersArgs) -> DesignPrimersResults:
+        return Operations().__design_primers(args)
 
 P_PASTORIS_CODONS = {
     "Ala": "GCT",

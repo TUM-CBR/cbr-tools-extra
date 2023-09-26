@@ -16,6 +16,21 @@
                 "parseresults",
                 "${workspaceFolder}/workspace/ProThermDB/1csp.multirot.solvated.micro"
             ]
+        },
+        {
+            "name": "Python: Generate Primers",
+            "type": "python",
+            "request": "launch",
+            "program": "cbrtools.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "primers",
+                "design",
+                "${workspaceFolder}/cbrextra/primers/demo/tmp/design_primers_01.db",
+                "<",
+                "cbrextra/primers/demo/design_primers_01.json"
+            ]
         }
     ]
 }

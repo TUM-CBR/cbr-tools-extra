@@ -17,15 +17,16 @@ from docopt import docopt
 
 from .core.module import Context, Result
 from .energy.main import module as energy
+from .primers.main import module as primers
 
 BAD_OPERATION = [
-  "The request:",
-  "",
-  " ".join(argv),
-  "",
-  "was not understood by 'cbrtools'. The supported operations are:",
-  "",
-  __doc__
+    "The request:",
+    "",
+    " ".join(argv),
+    "",
+    "was not understood by 'cbrtools'. The supported operations are:",
+    "",
+    __doc__
 ]
 
 def main():
@@ -36,6 +37,8 @@ def main():
     
     if command == 'energy':
         result = energy.main(context)
+    elif command == 'primers':
+        result = primers.main(context)
 
     if result is None or not result.is_success:
-      print()
+        print()
