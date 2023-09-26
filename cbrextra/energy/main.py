@@ -10,7 +10,6 @@ Specific energy options:
 """
 
 from docopt import docopt
-from typing import Self
 
 from ..core.module import Context, Module, Result
 
@@ -18,7 +17,7 @@ from .postprocessing import ParseEnergyRunsOperation
 
 class EnergyModule(Module):
 
-    def main(self: Self, context: Context) -> Result:
+    def main(self, context: Context) -> Result:
 
         options = docopt(__doc__)
 

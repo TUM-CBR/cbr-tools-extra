@@ -44,7 +44,7 @@ class Module(ABC):
         return Result.not_requested()
 
     @abstractmethod
-    def main(self : Self, ctx : Context) -> Result:
+    def main(self, context : Context) -> Result:
         pass
 
 class Operation(ABC):
