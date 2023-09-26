@@ -1,3 +1,4 @@
+from itertools import islice
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -16,14 +17,17 @@ class Store:
         Base.metadata.create_all(db_engine)
 
         Session = sessionmaker(bind=db_engine)
-        with Session() as session:
-            session.add_all(
-                PrimerModel.from_result(group_key, codon, result)
-                for group_key, group in enumerate(primer_results)
-                for codon, results in group.items()
-                for result in results
-            )
-            session.commit()
+        all_primers = (
+            PrimerModel.from_result(group_key, codon, result)
+            for group_key, group in enumerate(primer_results)
+            for codon, results in group.items()
+            for result in results
+        )
+
+        while len(chunk := list(islice(all_primers, 10000))) > 0:
+            with Session() as session:
+                session.add_all(chunk)
+                session.commit()
 
     @staticmethod
     def save_design_results(

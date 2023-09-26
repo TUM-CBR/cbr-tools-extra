@@ -10,14 +10,13 @@ Options:
 The most commonly used git commands are:
    energy        Perform or read energy calculations
 """
-
 from sys import argv
 from typing import Optional
 from docopt import docopt
 
-from .core.module import Context, Result
-from .energy.main import module as energy
-from .primers.main import module as primers
+from cbrextra.core.module import Context, Result
+from cbrextra.energy.main import module as energy
+from cbrextra.primers.main import module as primers
 
 BAD_OPERATION = [
     "The request:",
