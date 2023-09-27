@@ -10,7 +10,7 @@ Options:
 The most commonly used git commands are:
    energy        Perform or read energy calculations
 """
-from sys import argv
+from sys import argv, exit, stderr
 from typing import Optional
 from docopt import docopt
 
@@ -40,4 +40,5 @@ def main():
         result = primers.main(context)
 
     if result is None or not result.is_success:
-        print()
+        print(docopt(__doc__), file=stderr)
+        exit(1)

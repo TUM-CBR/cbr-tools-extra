@@ -1,6 +1,6 @@
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, NamedTuple, Optional, Tuple
 
-from .data import DesignPrimersArgs, DesignPrimersResult, DesignPrimersResults, NamedTuple, PrimerOrganism, PrimerResult
+from .data import DesignPrimersArgs, DesignPrimersResults, PrimerOrganism, PrimerResult
 from .melting_temp import MeltingTemp
 
 CODON_SIZE = 3
@@ -49,35 +49,38 @@ class Operations:
 
             codon_count = self.start + self.codon_count*self.__step + self.__step
 
-            for i in range(self.start, codon_count, self.__step):
-                yield self.design_primer_at(i)
+            return DesignPrimersResults(
+                plasmid=self.sequence,
+                codon_mappings=self.codons,
+                primers=(
+                    primer
+                    for i in range(self.start, codon_count, self.__step)
+                    for primer in self.design_primer_at(i)
+                )
+            )
 
-        def design_primer_at(self, position : int) -> DesignPrimersResult:
+        def design_primer_at(self, position : int) -> Iterable[PrimerResult]:
             tm_calc = self.operations.tm_calc
-            results : DesignPrimersResult = {}
 
             for aa,codon in self.codons.items():
 
-                def get_primers_for_codon() -> Iterable[PrimerResult]:
-                    for (p_left, o_codon, p_right) in self.generate_primers_at(position):
-                        tm_left = tm_calc.oligo_tm(p_left)
-                        tm_right = tm_calc.oligo_tm(p_right)
+                for (p_left, o_codon, p_right) in self.generate_primers_at(position):
+                    tm_left = tm_calc.oligo_tm(p_left)
+                    tm_right = tm_calc.oligo_tm(p_right)
 
-                        seq = p_left + o_codon + p_right
-                        tm_all = tm_calc.oligo_tm(seq)
+                    seq = p_left + o_codon + p_right
+                    tm_all = tm_calc.oligo_tm(seq)
 
-                        yield PrimerResult(
-                            left_primer=p_left,
-                            tm_left=tm_left,
-                            right_primer=p_right,
-                            tm_right=tm_right,
-                            inner_seq=codon,
-                            tm_all=tm_all
-                        )
-
-                results[aa] = list(get_primers_for_codon())
-
-            return results
+                    yield PrimerResult(
+                        left_primer=p_left,
+                        tm_left=tm_left,
+                        right_primer=p_right,
+                        tm_right=tm_right,
+                        inner_seq=codon,
+                        tm_all=tm_all,
+                        position=position,
+                        amino_acid=aa
+                    )
 
         def __is_unique(self, primer_candidate: str):
             start_ix = 0
@@ -102,7 +105,7 @@ class Operations:
         ) -> Iterable[Tuple[str, str, str]]:
             count = self.__step
             min_length = self.min_length
-            max_length = self.max_length + 1
+            max_length = self.max_length
 
             for i in range(min_length, max_length):
                 for j in range(min_length, max_length):

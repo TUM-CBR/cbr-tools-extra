@@ -31,6 +31,22 @@
                 "<",
                 "cbrextra/primers/demo/design_primers_01.json"
             ]
+        },
+        {
+            "name": "Python: Query Primers",
+            "type": "python",
+            "request": "launch",
+            "program": "cbrtools.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "primers",
+                "query",
+                "--tm_primers=55,1",
+                "--tm_total=65,1",
+                "--tm_delta=1",
+                "${workspaceFolder}/cbrextra/primers/demo/tmp/design_primers_01.db"
+            ]
         }
     ]
 }
