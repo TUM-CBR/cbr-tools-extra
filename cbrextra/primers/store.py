@@ -2,6 +2,7 @@ from itertools import islice
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 from typing import List, NamedTuple
+import sys
 
 from .data import DesignPrimersResults
 from .models import Base, CodonMappingModel, PlasmidModel, PrimerModel
@@ -35,13 +36,15 @@ class Store:
             PrimerModel,
             func.min(
                 tm_all_weight*func.abs(PrimerModel.tm_all - tm_all) \
-                + func.abs(PrimerModel.primer_left - PrimerModel.primer_right)*tm_delta_weight \
-                + func.abs(PrimerModel.primer_left - tm_primers)*tm_primers_weight \
-                + func.abs(PrimerModel.primer_right - tm_primers)*tm_primers_weight
+                + func.abs(PrimerModel.tm_left - PrimerModel.tm_right)*tm_delta_weight \
+                + func.abs(PrimerModel.tm_left - tm_primers)*tm_primers_weight \
+                + func.abs(PrimerModel.tm_right - tm_primers)*tm_primers_weight
             )
-        ).group_by('amino_acid', 'position')
+        ).group_by(PrimerModel.position, PrimerModel.amino_acid) \
+        .order_by(PrimerModel.position)
 
         with Session() as session:
+            print(str(query), file=sys.stderr)
             return PrimerModel.to_results(
                 primer
                 for primer,_ in session.execute(query)
