@@ -1,6 +1,6 @@
-from typing import Dict, Iterable, NamedTuple, Optional, Tuple
+from typing import Dict, Iterable, NamedTuple, Tuple
 
-from .data import DesignPrimersArgs, DesignPrimersResults, PrimerOrganism, PrimerResult
+from .data import DesignPrimersArgs, DesignPrimersResults, Primer3Args, PrimerOrganism, PrimerResult
 from .melting_temp import MeltingTemp
 
 CODON_SIZE = 3
@@ -47,7 +47,7 @@ class Operations:
 
         def design_primers(self) -> DesignPrimersResults:
 
-            codon_count = self.start + self.codon_count*self.__step + self.__step
+            codon_count = self.start + self.codon_count*self.__step
 
             return DesignPrimersResults(
                 plasmid=self.sequence,
@@ -124,13 +124,11 @@ class Operations:
                                 r_seq
                             )
 
-    def __init__(self, tm_calc : Optional[MeltingTemp] = None):
-        self.__tm_calc = \
-            tm_calc or \
-            MeltingTemp(
-                dna_conc=DEFAULT_DNA_CONC,
-                dntp_conc=DEFAULT_DNTP_CONC
-            )
+    def __init__(
+        self,
+        args : DesignPrimersArgs    
+    ):
+        self.__tm_calc = MeltingTemp(args.primer3Args or Primer3Args.default())
 
     @property
     def tm_calc(self) -> MeltingTemp:
@@ -148,7 +146,7 @@ class Operations:
 
     @staticmethod
     def design_primers(args: DesignPrimersArgs) -> DesignPrimersResults:
-        return Operations().__design_primers(args)
+        return Operations(args).__design_primers(args)
 
 P_PASTORIS_CODONS = {
     "Ala": "GCT",

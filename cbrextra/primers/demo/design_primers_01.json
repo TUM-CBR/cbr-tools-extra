@@ -1,6 +1,6 @@
 {
     "start": 229,
-    "codon_count": 50,
+    "codon_count": 500,
     "min_length": 5,
     "max_length": 30,
     "organism": "E_COLI",

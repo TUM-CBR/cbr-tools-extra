@@ -27,7 +27,7 @@
             "args": [
                 "primers",
                 "design",
-                "${workspaceFolder}/cbrextra/primers/demo/tmp/design_primers_01.db",
+                "${workspaceFolder}/cbrextra/primers/demo/tmp/design_primers_01.sqlite",
                 "<",
                 "cbrextra/primers/demo/design_primers_01.json"
             ]

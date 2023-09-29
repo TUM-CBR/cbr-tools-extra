@@ -1,6 +1,6 @@
 from Bio.Seq import Seq
 from pydantic import BaseModel
-from typing import Dict, Iterable, Literal
+from typing import Dict, Iterable, Literal, Optional
 
 PrimerOrganism = Literal['E_COLI', 'P_PASTORIS']
 
@@ -31,6 +31,31 @@ class DesignPrimersResults(BaseModel):
     plasmid : str
     codon_mappings : Dict[str, str]
 
+class Primer3Args(BaseModel):
+    mv_conc: Optional[float]
+    dv_conc: Optional[float]
+    dntp_conc : Optional[float]
+    dna_conc : Optional[float]
+    annealing_temp_c : Optional[float]
+    max_nn_length : Optional[int]
+    dmso_conc: Optional[float]
+    dmso_fact: Optional[float]
+    formamide_conc: Optional[float]
+
+    @staticmethod
+    def default() -> 'Primer3Args':
+        return Primer3Args(
+            mv_conc=None,
+            dv_conc=None,
+            dna_conc=None,
+            dntp_conc=None,
+            annealing_temp_c=None,
+            max_nn_length=None,
+            dmso_conc=None,
+            dmso_fact=None,
+            formamide_conc=None
+        )
+
 class DesignPrimersArgs(BaseModel):
     sequence : str
     start : int
@@ -38,3 +63,4 @@ class DesignPrimersArgs(BaseModel):
     min_length : int
     max_length : int
     organism : PrimerOrganism
+    primer3Args: Optional[Primer3Args]
