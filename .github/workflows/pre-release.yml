@@ -30,7 +30,7 @@ jobs:
           cache: 'pip' # caching pip dependencies
 
       - run: pip install -r requirements.txt
-      - run: python -m PyInstaller -p cbr cbrtools.py
+      - run: pyinstaller.exe -n cbrtools --collect-all primer3 cbrtools.py
 
       - name: Archive Release
         uses: thedoctor0/zip-release@0.7.1

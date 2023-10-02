@@ -32,29 +32,19 @@ class DesignPrimersResults(BaseModel):
     codon_mappings : Dict[str, str]
 
 class Primer3Args(BaseModel):
-    mv_conc: Optional[float]
-    dv_conc: Optional[float]
-    dntp_conc : Optional[float]
-    dna_conc : Optional[float]
-    annealing_temp_c : Optional[float]
-    max_nn_length : Optional[int]
-    dmso_conc: Optional[float]
-    dmso_fact: Optional[float]
-    formamide_conc: Optional[float]
+    mv_conc: Optional[float] = None
+    dv_conc: Optional[float] = None
+    dntp_conc : Optional[float] = None
+    dna_conc : Optional[float] = None
+    annealing_temp_c : Optional[float] = None
+    max_nn_length : Optional[int]  = None
+    dmso_conc: Optional[float] = None
+    dmso_fact: Optional[float] = None
+    formamide_conc: Optional[float] = None
 
     @staticmethod
     def default() -> 'Primer3Args':
-        return Primer3Args(
-            mv_conc=None,
-            dv_conc=None,
-            dna_conc=None,
-            dntp_conc=None,
-            annealing_temp_c=None,
-            max_nn_length=None,
-            dmso_conc=None,
-            dmso_fact=None,
-            formamide_conc=None
-        )
+        return Primer3Args()
 
 class DesignPrimersArgs(BaseModel):
     sequence : str
