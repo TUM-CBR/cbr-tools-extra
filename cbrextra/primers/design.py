@@ -65,6 +65,11 @@ class Operations:
             for aa,codon in self.codons.items():
 
                 for (p_left, o_codon, p_right) in self.generate_primers_at(position):
+
+                    # Skip the primers that would result in no mutation
+                    if codon.upper() == o_codon.upper():
+                        continue
+
                     tm_left = tm_calc.oligo_tm(p_left)
                     tm_right = tm_calc.oligo_tm(p_right)
 
