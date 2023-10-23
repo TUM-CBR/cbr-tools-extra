@@ -1,0 +1,65 @@
+cabal-version:      2.4
+name:               cbrextra-hs
+version:            0.1.0.0
+
+-- A short (one-line) description of the package.
+-- synopsis:
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+
+-- The license under which the package is released.
+-- license:
+author:             Ernesto Rodriguez
+maintainer:         ernesto.rodriguez@tum.de
+
+-- A copyright notice.
+-- copyright:
+-- category:
+extra-source-files: CHANGELOG.md
+
+executable cbrextra
+    main-is: Bio/Cbr.hs
+
+-- foreign-library libcbrextra
+    -- type:                native-shared
+    -- Modules included in this executable, other than Main.
+    other-modules:
+        Bio.Cbr
+        Bio.Cbr.Msa
+        Bio.Cbr.Msa.Algorithms
+    -- other-modules:
+
+    -- if os(Windows)
+    --    options: standalone
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:    base ^>=4.17.2.0,
+                      conduit ^>=1.3.5,
+                      conduit-extra ^>=1.3.6,
+                      containers ^>=0.6.8,
+                      generic-lens ^>=2.2.2.0,
+                      lens ^>=5.2.3,
+                      mtl ^>=2.2.2,
+                      text ^>=2.0,
+                      vector ^>=0.13.1.0,
+                      vector-algorithms ^>=0.9.0.1
+    hs-source-dirs:   app
+    default-language: Haskell2010
+    -- extra-libraries: HSrts-1.0.2
+    ghc-options: -fPIC
+    default-extensions:
+        DataKinds
+        FlexibleContexts
+        ForeignFunctionInterface
+        ImpredicativeTypes
+        MultiWayIf
+        OverloadedLabels
+        OverloadedStrings
+        TypeApplications
+    -- c-sources:           wrapper/cbrextra.c
+    -- cc-options: -fPIC
