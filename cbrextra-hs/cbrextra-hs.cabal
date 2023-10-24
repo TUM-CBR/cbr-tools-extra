@@ -61,5 +61,6 @@ executable cbrextra
         OverloadedLabels
         OverloadedStrings
         TypeApplications
+        TypeFamilies
     -- c-sources:           wrapper/cbrextra.c
     -- cc-options: -fPIC
