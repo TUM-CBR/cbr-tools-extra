@@ -29,6 +29,7 @@ executable cbrextra
     -- Modules included in this executable, other than Main.
     other-modules:
         Bio.Cbr
+        Bio.Cbr.IO
         Bio.Cbr.Msa
         Bio.Cbr.Msa.Algorithms
     -- other-modules:
@@ -39,6 +40,7 @@ executable cbrextra
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:    base ^>=4.17.2.0,
+                      bytestring ^>=0.11.5.2,
                       conduit ^>=1.3.5,
                       conduit-extra ^>=1.3.6,
                       containers ^>=0.6.8,
@@ -54,12 +56,18 @@ executable cbrextra
     ghc-options: -fPIC
     default-extensions:
         DataKinds
+        DeriveGeneric
         FlexibleContexts
+        FlexibleInstances
         ForeignFunctionInterface
+        FunctionalDependencies
         ImpredicativeTypes
+        MultiParamTypeClasses
         MultiWayIf
         OverloadedLabels
         OverloadedStrings
+        PolyKinds
+        ScopedTypeVariables
         TypeApplications
         TypeFamilies
     -- c-sources:           wrapper/cbrextra.c
