@@ -22,20 +22,18 @@ maintainer:         ernesto.rodriguez@tum.de
 extra-source-files: CHANGELOG.md
 
 executable cbrextra
-    main-is: Bio/Cbr.hs
+    main-is: Bio/Cbr/Main.hs
 
--- foreign-library libcbrextra
-    -- type:                native-shared
+--foreign-library libcbrextra
+--    type:                native-shared
+--    if os(Windows)
+--        options: standalone
     -- Modules included in this executable, other than Main.
     other-modules:
         Bio.Cbr
         Bio.Cbr.IO
         Bio.Cbr.Msa
         Bio.Cbr.Msa.Algorithms
-    -- other-modules:
-
-    -- if os(Windows)
-    --    options: standalone
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -45,6 +43,7 @@ executable cbrextra
                       conduit-extra ^>=1.3.6,
                       containers ^>=0.6.8,
                       generic-lens ^>=2.2.2.0,
+                      hashable ^>=1.4.3.0,
                       lens ^>=5.2.3,
                       mtl ^>=2.2.2,
                       text ^>=2.0,
@@ -52,7 +51,6 @@ executable cbrextra
                       vector-algorithms ^>=0.9.0.1
     hs-source-dirs:   app
     default-language: Haskell2010
-    -- extra-libraries: HSrts-1.0.2
     ghc-options: -fPIC
     default-extensions:
         DataKinds
@@ -67,8 +65,9 @@ executable cbrextra
         OverloadedLabels
         OverloadedStrings
         PolyKinds
+        RecordWildCards
         ScopedTypeVariables
         TypeApplications
         TypeFamilies
-    -- c-sources:           wrapper/cbrextra.c
-    -- cc-options: -fPIC
+    c-sources:           wrapper/cbrextra.c
+    cc-options: -fPIC
