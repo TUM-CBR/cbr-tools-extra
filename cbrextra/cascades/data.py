@@ -1,15 +1,32 @@
 from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
 from os import path
 from typing import Dict, List, NamedTuple
 
+class CascadeSequence(NamedTuple):
+    seq_id : str
+    seq : str
+
+    @staticmethod
+    def from_seq(seq: SeqRecord) -> 'CascadeSequence':
+
+        if seq.id is None:
+            raise ValueError("The sequence must have a valid id.")
+
+        return CascadeSequence(
+            seq_id = seq.id,
+            seq = str(seq.seq)
+        )
+
+
 class CascadeStep(NamedTuple):
     name : str
-    sequences : List[str]
+    sequences : List[CascadeSequence]
 
     @property
     def fasta(self) -> List[str]:
         return [
-            f">{self.name}\n{sequence}"
+            f">{sequence.seq_id}\n{sequence.seq}"
             for sequence in self.sequences
         ]
 
@@ -18,7 +35,7 @@ class CascadeStep(NamedTuple):
         return CascadeStep(
             name = path.basename(file_location),
             sequences= [
-                str(s.seq)
+                CascadeSequence.from_seq(s)
                 for s in SeqIO.parse(file_location, format='fasta')
             ]
         )

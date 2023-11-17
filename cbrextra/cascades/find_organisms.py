@@ -1,11 +1,12 @@
 from Bio import Entrez as entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement
+from Bio.Blast.Record import Blast
 from Bio.Blast import NCBIWWW as blast
 from Bio.Blast import NCBIXML as blastxml
 from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby
 import re
-from typing import Any, Dict, Generator, Iterable, Iterator, List, NamedTuple, Optional
+from typing import Dict, Iterable, List, Optional
 
 from .data import *
 
@@ -18,10 +19,11 @@ K_TAX_ID = "TaxId"
 
 def get_tax_ids(organisms : Iterable[str]) -> Iterable[str]:
 
+    organisms = list(organisms)
     query = "+OR+".join(f"\"{organism}\"[All Names]" for organism in organisms)
 
     search_result = entrez.read(
-        entrez.esearch(db="taxonomy", term=query)
+        entrez.esearch(db="taxonomy", term=query, retmax=len(organisms))
     )
 
     if search_result is None:
@@ -70,7 +72,7 @@ def get_organisms_for_accesions(accessions: Iterable[str]) -> Dict[str, Organism
         for accession in accessions
     )
     articles_iter = entrez.read(
-        entrez.esearch(db="nucleotide", term=query)
+        entrez.esearch(db="nucleotide", term=query, retmax=len(accessions))
     )
 
     ids = []
@@ -127,12 +129,13 @@ default_include = [
 default_exclude = ["synthetic constructs (taxid:32630)"]
 
 
-def find_cascades(
-    cascade : List[CascadeStep],
+def find_organisms(
+    step: CascadeStep,
     excluded_organisms: Optional[List[str]] = None,
     included_organisms: Optional[List[str]] = None,
-    num_results = 5000
-) -> CascadeReesult:
+    num_results = 5000,
+    threads = 4
+) -> CascadeStepResult:
 
     if included_organisms is None:
         included_organisms = list(default_include)
@@ -151,8 +154,8 @@ def find_cascades(
     for organism in excluded_organisms:
         organisms[organism] = True
 
-    def query_step(step : CascadeStep) -> List[Any]:
-        buffers = [
+    def query_step(fasta: str) -> Blast:
+        buffer = \
             blast.qblast(
                 database = "nr",
                 sequence = fasta,
@@ -160,23 +163,21 @@ def find_cascades(
                 hitlist_size = num_results,
                 alignments = num_results,
                 descriptions = num_results,
+                max_num_seq = num_results,
                 organisms=organisms
             )
-            for fasta in step.fasta
-        ]
 
-        return [
-            blastxml.read(buffer)
-            for buffer in buffers
-        ]
+        result = blastxml.read(buffer)
+        assert isinstance(result, Blast)
+        return result
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=threads) as executor:
         futures = [
             executor.submit(
                 query_step,
-                step
+                fasta
             )
-            for step in cascade
+            for fasta in step.fasta
         ]
 
         #Todo: maybe not keep everything in memory
@@ -187,42 +188,30 @@ def find_cascades(
 
     accession_to_organism = get_organisms_for_accesions(
         alignment.accession
-        for results in blast_results
-        for result in results
+        for result in blast_results
         for alignment in result.alignments
     )
 
-    cascade_steps = []
+    organisms = {}
 
-    for i, results in enumerate(blast_results):
-
-        step = cascade[i]
-        organisms = {}
-
-        for result_ix, result in results:
-            sequence = step.sequences[result_ix]
-            for alignment in result.alignments:
-                accession = alignment.accession
-                organism = accession_to_organism[accession]
-                closets_match = max(
-                    alignment.hsps,
-                    key = lambda hsps: hsps.identities
-                )
-                cascade_organism = CascadeStepOrganism(
-                    organism=organism,
-                    identity=closets_match.identities/len(sequence),
-                    sequence_match=closets_match.sbjct
-                )
-                update_if_better(organisms, cascade_organism)
-
-        cascade_steps.append(
-            CascadeStepResult(
-                step = step,
-                organisms = list(organisms.values())
+    for result_ix, result in enumerate(blast_results):
+        sequence = step.sequences[result_ix]
+        for alignment in result.alignments:
+            accession = alignment.accession
+            organism = accession_to_organism[accession]
+            closets_match = max(
+                alignment.hsps,
+                key = lambda hsps: hsps.identities
             )
-        )
+            cascade_organism = CascadeStepOrganism(
+                organism=organism,
+                identity=closets_match.identities/len(sequence),
+                sequence_match=closets_match.sbjct
+            )
+            update_if_better(organisms, cascade_organism)
 
-    return CascadeReesult(
-        steps = cascade_steps
+    return CascadeStepResult(
+        step = step,
+        organisms=list(organisms.values())
     )
 
