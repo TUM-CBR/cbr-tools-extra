@@ -1,12 +1,13 @@
+import asyncio
 from Bio import Entrez as entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement
 from Bio.Blast.Record import Blast
 from Bio.Blast import NCBIWWW as blast
 from Bio.Blast import NCBIXML as blastxml
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Executor
 from itertools import groupby
 import re
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List
 
 from .data import *
 
@@ -122,20 +123,14 @@ def get_organisms_for_accesions(accessions: Iterable[str]) -> Dict[str, Organism
     )
 
 
-default_include = [
-    "Bacteria (taxid:2)",
-    #"Archaea (taxid:2157)"
-]
-default_exclude = ["synthetic constructs (taxid:32630)"]
-
-
-def find_organisms(
-    step: CascadeStep,
-    excluded_organisms: Optional[List[str]] = None,
-    included_organisms: Optional[List[str]] = None,
-    num_results = 5000,
-    threads = 4
+async def find_organisms(
+    args : FindOrganismsArgs,
+    executor : Executor
 ) -> CascadeStepResult:
+    included_organisms = args.included_organisms
+    excluded_organisms = args.excluded_organisms
+    num_results = args.num_results
+    step = args.step
 
     if included_organisms is None:
         included_organisms = list(default_include)
@@ -171,20 +166,12 @@ def find_organisms(
         assert isinstance(result, Blast)
         return result
 
-    with ThreadPoolExecutor(max_workers=threads) as executor:
-        futures = [
-            executor.submit(
-                query_step,
-                fasta
-            )
+    blast_results = await asyncio.gather(*
+        [
+            asyncio.get_event_loop().run_in_executor(executor, query_step, fasta)
             for fasta in step.fasta
         ]
-
-        #Todo: maybe not keep everything in memory
-        blast_results = [
-            future.result()
-            for future in futures
-        ]
+    )
 
     accession_to_organism = get_organisms_for_accesions(
         alignment.accession

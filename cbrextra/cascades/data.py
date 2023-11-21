@@ -1,7 +1,6 @@
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-from os import path
-from typing import Dict, List, NamedTuple
+from typing import Dict, List, NamedTuple, Optional
 
 class CascadeSequence(NamedTuple):
     seq_id : str
@@ -20,8 +19,9 @@ class CascadeSequence(NamedTuple):
 
 
 class CascadeStep(NamedTuple):
-    name : str
-    sequences : List[CascadeSequence]
+    step_id : int
+    step_name : str
+    sequences : List[CascadeSequence] = []
 
     @property
     def fasta(self) -> List[str]:
@@ -33,7 +33,8 @@ class CascadeStep(NamedTuple):
     @staticmethod
     def from_fasta(file_location: str):
         return CascadeStep(
-            name = path.basename(file_location),
+            step_id = 0,
+            step_name=file_location,
             sequences= [
                 CascadeSequence.from_seq(s)
                 for s in SeqIO.parse(file_location, format='fasta')
@@ -51,6 +52,17 @@ class CascadeStepOrganism(NamedTuple):
     identity : float
     sequence_match : str
 
+default_include = [
+    "Bacteria (taxid:2)",
+    #"Archaea (taxid:2157)"
+]
+default_exclude = ["synthetic constructs (taxid:32630)"]
+
+class FindOrganismsArgs(NamedTuple):
+    step : CascadeStep
+    excluded_organisms: Optional[List[str]] = None
+    included_organisms: Optional[List[str]] = None
+    num_results : int = 500
 
 def update_if_better(orgs: Dict[int, CascadeStepOrganism], org : CascadeStepOrganism):
 
