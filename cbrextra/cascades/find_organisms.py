@@ -21,7 +21,7 @@ K_TAX_ID = "TaxId"
 def get_tax_ids(organisms : Iterable[str]) -> Iterable[str]:
 
     organisms = list(organisms)
-    query = "+OR+".join(f"\"{organism}\"[All Names]" for organism in organisms)
+    query = " OR ".join(f"\"{organism}\"[All Names]" for organism in organisms)
 
     search_result = entrez.read(
         entrez.esearch(db="taxonomy", term=query, retmax=len(organisms))
@@ -192,7 +192,7 @@ async def find_organisms(
             )
             cascade_organism = CascadeStepOrganism(
                 organism=organism,
-                identity=closets_match.identities/len(sequence),
+                identity=closets_match.identities/len(sequence.seq),
                 sequence_match=closets_match.sbjct
             )
             update_if_better(organisms, cascade_organism)

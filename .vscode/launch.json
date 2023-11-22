@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "IPython",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "module": "IPython"
+        },
+        {
             "name": "Python: Energy Results Parser",
             "type": "python",
             "request": "launch",

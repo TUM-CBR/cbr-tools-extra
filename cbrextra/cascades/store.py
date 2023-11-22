@@ -1,3 +1,4 @@
+from Bio.SeqRecord import SeqRecord
 from os import path
 from typing import Iterable
 from sqlalchemy import create_engine, select, join
@@ -20,13 +21,14 @@ class Store:
             return self
 
         def __exit__(self, *args, **kwargs):
+            self.__session.commit()
             self.__session.__exit__(*args, **kwargs)
 
         def query_organisms_for_step(self, step : CascadeStepModel) -> Iterable[OrganismModel]:
             table = join(
                 OrganismModel,
                 CascadeStepOrganismModel,
-                OrganismModel.id == CascadeStepOrganismModel.organism_id
+                OrganismModel.tax_id == CascadeStepOrganismModel.organism_id
             )
             query = select(OrganismModel) \
                 .where(CascadeStepOrganismModel.step_id == step.id) \
@@ -50,7 +52,7 @@ class Store:
             for (step,) in self.__session.execute(select(CascadeStepModel)):
 
                 previous_organisms = [
-                    f"{organism.name} ({organism.tax_ix})"
+                    f"{organism.name} (taxid:{organism.tax_id})"
                     for organism in self.query_organisms_for_step(step)
                 ]
                 excluded_organisms = default_exclude + previous_organisms
@@ -77,9 +79,10 @@ class Store:
 
             self.__session.add_all(
                 CascadeStepOrganismModel(
-                    sequence = step_organism.sequence_match,
+                    sequence_match = step_organism.sequence_match,
                     step = step,
-                    organism = self.get_or_create_organism(step_organism.organism)
+                    organism = self.get_or_create_organism(step_organism.organism),
+                    identity = step_organism.identity
                 )
                 for step_organism in step_organisms
             )
@@ -103,7 +106,7 @@ class Store:
 
         def save_results(self, results: Iterable[CascadeStepResult]) -> None:
             for result in results:
-                step_result = self.__session.execute(select(CascadeStep) \
+                step_result = self.__session.execute(select(CascadeStepModel) \
                     .where(CascadeStepModel.id == result.step.step_id)) \
                     .first()
 
@@ -112,15 +115,15 @@ class Store:
 
                 self.save_step_organisms(step, result.organisms)
 
-        def create_step(self, step_id: int, step_name : str) -> CascadeStepModel:
-            model = CascadeStepModel(id = step_id, step_name = step_name)
+        def create_step(self, value: dict) -> CascadeStepModel:
+            model = CascadeStepModel.from_dict(value)
             self.__session.add(model)
             return model
 
-        def create_step_seq(self, step : CascadeStepModel, seq_id: str, sequence : str):
+        def create_step_seq(self, step : CascadeStepModel, seq: SeqRecord):
             model = CascadeStepSequenceModel(
-                seq_id = seq_id,
-                sequence = sequence,
+                seq_id = seq.id,
+                sequence = str(seq.seq),
                 step = step
             )
             self.__session.add(model)

@@ -8,7 +8,7 @@ class OrganismModel(Base):
     __tablename__ = "organisms"
     tax_id = Column(Integer, primary_key=True)
     name = Column(String)
-    cascade_organisms = relationship('CascadeOrganism', back_populates='organism')
+    cascade_organisms = relationship('CascadeStepOrganismModel', back_populates='organism')
 
 class CascadeStepOrganismModel(Base):
     __tablename__ = "cascade_step_organism"
@@ -20,7 +20,7 @@ class CascadeStepOrganismModel(Base):
     organism = relationship("OrganismModel", back_populates='cascade_organisms')
     
     step_id = Column(Integer, ForeignKey('cascade_steps.id'))
-    step = relationship('CascadeStepModel', back_populates='step_id')
+    step = relationship('CascadeStepModel', back_populates='step_organisms')
 
 class CascadeStepSequenceModel(Base):
     __tablename__ = "cascade_step_sequences"
@@ -32,7 +32,7 @@ class CascadeStepSequenceModel(Base):
 
     # Cascade Step
     step_id = Column(Integer, ForeignKey('cascade_steps.id'))
-    step = relationship('CascadeStepModel', back_populates='step_id')
+    step = relationship('CascadeStepModel', back_populates='step_sequences')
 
 class CascadeStepModel(Base):
     __tablename__ = "cascade_steps"
@@ -40,3 +40,10 @@ class CascadeStepModel(Base):
     step_name = Column(String)
     step_sequences = relationship('CascadeStepSequenceModel', back_populates='step')
     step_organisms = relationship('CascadeStepOrganismModel', back_populates='step')
+
+    @staticmethod
+    def from_dict(value: dict):
+        return CascadeStepModel(
+            id = value["step_id"],
+            step_name = value["step_name"]
+        )

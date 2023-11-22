@@ -62,7 +62,7 @@ class FindOrganismsArgs(NamedTuple):
     step : CascadeStep
     excluded_organisms: Optional[List[str]] = None
     included_organisms: Optional[List[str]] = None
-    num_results : int = 500
+    num_results : int = 1000
 
 def update_if_better(orgs: Dict[int, CascadeStepOrganism], org : CascadeStepOrganism):
 
