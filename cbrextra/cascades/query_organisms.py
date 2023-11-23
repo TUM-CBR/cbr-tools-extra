@@ -16,8 +16,8 @@ def find_cascades(
                    that code for the any of the enzymes needed for the step
         * any: 'keep' or 'replace'
     
-    This function will then first query the database to identify the organisms that satisfy
-    the steps with a 'replace' criteria. 
+    This function will query all the organisms mathcing all of those steps and filter
+    them out according to the criteria specified above.
     """
 
     store = Store(db_file)
@@ -26,56 +26,49 @@ def find_cascades(
 
     with store.session() as session:
         steps = session.get_steps(list(by_step.keys()))
-        organisms_missing_step = dict(
-            (
-                step.step_id,
-                session.get_organisms_missing_step_gene(
-                    step,
-                    cascade_args.max_identity_treshold
-                )
-            )
-            for step in steps
-        )
+        step_identities = session.get_organisms_and_steps(steps)
 
-        organisms : Dict[int, OrganismModel] = dict(
-            (organism.tax_id, organism)
-            for (_, results) in organisms_missing_step
-            for (organism,_) in results
-        )
+    organisms = dict(
+        (organism.tax_id, organism)
+        for (_, organism) in step_identities
+    )
 
-        missing_steps : List[Tuple[int, Dict[int, float]]] = [
-            (
-                step_id,
-                dict(
-                    (organism.tax_id, identity)
-                    for organism, identity in results
-                )
-            )
-            for step_id, results in organisms_missing_step
-        ]
+    all_steps : Dict[int, Dict[int, float]] = {}
 
-        other_steps : List[Tuple[int, Dict[int, float]]] = [
-            (
-                step.step_id,
-                dict(
-                    (tax_id, identity)
-                    for cascade_organism in session.query_step_identities(step.step_id, organisms.values())
-                    for tax_id, identity in [(cast(int, cascade_organism.organism_id), cast(float, cascade_organism.identity))]
-                )
-            )
-            for step in steps_specs
-            if step.policy != QueryStepPolicy.replace
-        ]
+    # todo: This is very inefficient as we are not using the db manager at all
+    # to do the filtering. Currently, this is not a problem as the results come
+    # from NCBI, so we are anyways limited by their throttling regarding how
+    # big these databases can become.
+    # the commit c1480b40283f5b7caaf19b116bcab2c1a336e8a6 contains a start
+    # for that implementation
+    for step_organism, organism in step_identities:
+        step_id = cast(int, step_organism.step_id)
+        all_steps[step_id] = step_dict = all_steps[step_id] if step_id in all_steps else {}
+        tax_id = cast(int, organism.tax_id)
 
-    all_steps = dict(missing_steps + other_steps)
+        step_dict[tax_id] = cast(float, step_organism.identity)
 
     def construct_steps(organism: OrganismModel):
 
         result = []
         for step in steps_specs:
-            identity = all_steps[step.step_id].get(cast(int, organism.tax_id))
+            identity = next(
+                (
+                    identity
+                    for identities in [all_steps.get(step.step_id)] if identities is not None
+                    for identity in [identities.get(cast(int, organism.tax_id))]
+                ),
+                None
+            )
 
+            # ideally, these two filtering steps should be done by
+            # the dbms
             if identity is None and step.policy == QueryStepPolicy.keep:
+                return None
+
+            if identity is not None \
+                and step.policy == QueryStepPolicy.replace \
+                and identity > cascade_args.max_identity_treshold:
                 return None
             
             result.append(

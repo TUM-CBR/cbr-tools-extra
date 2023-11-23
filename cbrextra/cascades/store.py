@@ -142,14 +142,10 @@ class Store:
 
             return [result for (result,) in results]
 
-        def get_organisms_missing_step_gene(
+        def get_organisms_and_steps(
             self,
-            step : CascadeStepModel,
-            max_identity_treshold : float
-        ) -> List[Tuple[OrganismModel, float]]:
-
-            if not (0 <= max_identity_treshold <= 1):
-                raise ValueError(f"The 'max_identity_treshold' should be between 0 and 1. Got {max_identity_treshold}")
+            steps : List[CascadeStepModel]
+        ) -> List[Tuple[CascadeStepOrganismModel, OrganismModel]]:
 
             table = join(
                 OrganismModel,
@@ -157,61 +153,17 @@ class Store:
                 OrganismModel.tax_id == CascadeStepOrganismModel.organism_id
             )
 
-            # we find all the organisms that have genes similar
-            # to the sequence of the enzymes of the provided step
-            step_organisms_ids = \
-                select(CascadeStepOrganismModel.organism_id) \
-                .where(CascadeStepOrganismModel.step_id == step.id)
+            step_ids = (step.id for step in steps)
 
-            query_low_identity = \
-                select(OrganismModel, CascadeStepOrganismModel).select_from(table) \
+            query = select(CascadeStepOrganismModel, OrganismModel) \
                 .where(
-                    # The identity between genes of the organism is low
-                    # aganist the gene sequence of the enzyme for this step
-                    and_ (
-                        CascadeStepOrganismModel.step_id == step.id,
-                        CascadeStepOrganismModel.identity <= max_identity_treshold
-                    )
-                )
-
-            query_missing = \
-                select(OrganismModel) \
-                .where(
-                    # Organisms that don't have any genes similar
-                    # to the gene of the enzymes in the step
-                    CascadeStepOrganismModel.organism_id.not_in(step_organisms_ids)
-                )
-
-            low_identity = [
-                (organism, identity)
-                for (organism, identity) in self.__session.execute(query_low_identity)
-            ]
-
-            missing = [
-                (organism, 0)
-                for (organism,) in self.__session.execute(query_missing)
-            ]
-
-            return low_identity + missing
-
-        def query_step_identities(
-            self,
-            step_id : int,
-            organisms: Iterable[OrganismModel]
-        ) -> List[CascadeStepOrganismModel]:
-
-            ids = (organism.tax_id for organism in organisms)
-            query = Select(CascadeStepOrganismModel) \
-                .where(
-                    and_(
-                        CascadeStepOrganismModel.id.in_(ids),
-                        CascadeStepSequenceModel.step_id == step_id
-                    )
-                )
+                    CascadeStepOrganismModel.step_id.in_(step_ids)
+                ) \
+                .select_from(table)
 
             return [
-                result
-                for (result,) in self.__session.execute(query)
+                (step_organism, organism)
+                for (step_organism, organism) in self.__session.execute(query)
             ]
 
     def __init__(self, db_file: str):
