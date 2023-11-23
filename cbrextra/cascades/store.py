@@ -1,8 +1,7 @@
-from operator import and_, or_
 from Bio.SeqRecord import SeqRecord
 from os import path
 from typing import Iterable, Tuple
-from sqlalchemy import Select, create_engine, select, join
+from sqlalchemy import create_engine, select, join
 from sqlalchemy.orm import Session, sessionmaker
 
 from cbrextra.cascades.find_organisms import default_exclude

@@ -7,7 +7,7 @@ Options:
   -h --help     Show this screen.
   --version     Show version.
 
-The most commonly used git commands are:
+The most commonly used commands are:
    energy        Perform or read energy calculations
 """
 from sys import argv, exit, stderr
@@ -15,6 +15,7 @@ from typing import Optional
 from docopt import docopt
 
 from cbrextra.core.module import Context, Result
+from cbrextra.cascades.main import module as cascade
 from cbrextra.energy.main import module as energy
 from cbrextra.primers.main import module as primers
 
@@ -38,6 +39,8 @@ def main():
         result = energy.main(context)
     elif command == 'primers':
         result = primers.main(context)
+    elif command == 'cascades':
+        result = cascade.main(context)
 
     if result is None or not result.is_success:
         print(docopt(__doc__), file=stderr)

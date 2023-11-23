@@ -1,7 +1,8 @@
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from enum import Enum
-from typing import Dict, List, NamedTuple, Optional
+from pydantic import BaseModel
+from typing import cast, Dict, List, NamedTuple, Optional
 
 class CascadeSequence(NamedTuple):
     seq_id : str
@@ -47,7 +48,6 @@ class Organism(NamedTuple):
     tax_id : int
     name: str
 
-
 class CascadeStepOrganism(NamedTuple):
     organism : Organism
     identity : float
@@ -86,6 +86,17 @@ class QueryStepPolicy(Enum):
     replace = "replace"
     any = "any"
 
+    @staticmethod
+    def read(value : str) -> 'QueryStepPolicy':
+
+        options = [option.value for option in QueryStepPolicy]
+
+        if value in options:
+            return cast(QueryStepPolicy, value)
+
+        options_str = ", ".join(options)
+        raise ValueError(f"Unexpected value '{value}', must be one of '{options_str}'")
+
 class QueryCascadeStep(NamedTuple):
     step_id : int
     policy : QueryStepPolicy
@@ -94,13 +105,13 @@ class QueryCascadeArgs(NamedTuple):
     steps : List[QueryCascadeStep]
     max_identity_treshold : float
 
-class QueryCascadeResultStepEntry(NamedTuple):
+class QueryCascadeResultStepEntry(BaseModel):
     step_id : int
     identity : float
 
-class QueryCascadeResultOrganismEntry(NamedTuple):
+class QueryCascadeResultOrganismEntry(BaseModel):
     organism : Organism
     steps : List[QueryCascadeResultStepEntry]
 
-class QueryCascadeResult(NamedTuple):
+class QueryCascadeResult(BaseModel):
     organisms : List[QueryCascadeResultOrganismEntry]

@@ -46,7 +46,7 @@ def find_cascades_step(
 
 MIN_RESULTS_UNTIL_FAILURE = 10
 
-def find_cascades(
+def build_cascades_db(
     results_db : str,
     target_identity : float
 ):
