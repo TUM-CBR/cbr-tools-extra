@@ -1,5 +1,6 @@
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+from enum import Enum
 from typing import Dict, List, NamedTuple, Optional
 
 class CascadeSequence(NamedTuple):
@@ -73,11 +74,33 @@ def update_if_better(orgs: Dict[int, CascadeStepOrganism], org : CascadeStepOrga
         or org.identity > prev.identity:
         orgs[key] = org
 
-
 class CascadeStepResult(NamedTuple):
     step : CascadeStep
     organisms : List[CascadeStepOrganism]
 
-
 class CascadeReesult(NamedTuple):
     steps : List[CascadeStepResult]
+
+class QueryStepPolicy(Enum):
+    keep = "keep"
+    replace = "replace"
+    any = "any"
+
+class QueryCascadeStep(NamedTuple):
+    step_id : int
+    policy : QueryStepPolicy
+
+class QueryCascadeArgs(NamedTuple):
+    steps : List[QueryCascadeStep]
+    max_identity_treshold : float
+
+class QueryCascadeResultStepEntry(NamedTuple):
+    step_id : int
+    identity : float
+
+class QueryCascadeResultOrganismEntry(NamedTuple):
+    organism : Organism
+    steps : List[QueryCascadeResultStepEntry]
+
+class QueryCascadeResult(NamedTuple):
+    organisms : List[QueryCascadeResultOrganismEntry]

@@ -1,7 +1,8 @@
+from operator import and_, or_
 from Bio.SeqRecord import SeqRecord
 from os import path
-from typing import Iterable
-from sqlalchemy import create_engine, select, join
+from typing import Iterable, Tuple
+from sqlalchemy import Select, create_engine, select, join
 from sqlalchemy.orm import Session, sessionmaker
 
 from cbrextra.cascades.find_organisms import default_exclude
@@ -127,7 +128,91 @@ class Store:
                 step = step
             )
             self.__session.add(model)
-            return model 
+            return model
+
+        def get_steps(self, step_ids: List[int]) -> List[CascadeStepModel]:
+            query = select(CascadeStepModel).where(
+                CascadeStepModel.id.in_(step_ids)
+            )
+
+            results = list(self.__session.execute(query))
+            for (result,) in results:
+                if result.id not in step_ids:
+                    raise ValueError(f"The step {step_ids} is not in this database.")
+
+            return [result for (result,) in results]
+
+        def get_organisms_missing_step_gene(
+            self,
+            step : CascadeStepModel,
+            max_identity_treshold : float
+        ) -> List[Tuple[OrganismModel, float]]:
+
+            if not (0 <= max_identity_treshold <= 1):
+                raise ValueError(f"The 'max_identity_treshold' should be between 0 and 1. Got {max_identity_treshold}")
+
+            table = join(
+                OrganismModel,
+                CascadeStepOrganismModel,
+                OrganismModel.tax_id == CascadeStepOrganismModel.organism_id
+            )
+
+            # we find all the organisms that have genes similar
+            # to the sequence of the enzymes of the provided step
+            step_organisms_ids = \
+                select(CascadeStepOrganismModel.organism_id) \
+                .where(CascadeStepOrganismModel.step_id == step.id)
+
+            query_low_identity = \
+                select(OrganismModel, CascadeStepOrganismModel).select_from(table) \
+                .where(
+                    # The identity between genes of the organism is low
+                    # aganist the gene sequence of the enzyme for this step
+                    and_ (
+                        CascadeStepOrganismModel.step_id == step.id,
+                        CascadeStepOrganismModel.identity <= max_identity_treshold
+                    )
+                )
+
+            query_missing = \
+                select(OrganismModel) \
+                .where(
+                    # Organisms that don't have any genes similar
+                    # to the gene of the enzymes in the step
+                    CascadeStepOrganismModel.organism_id.not_in(step_organisms_ids)
+                )
+
+            low_identity = [
+                (organism, identity)
+                for (organism, identity) in self.__session.execute(query_low_identity)
+            ]
+
+            missing = [
+                (organism, 0)
+                for (organism,) in self.__session.execute(query_missing)
+            ]
+
+            return low_identity + missing
+
+        def query_step_identities(
+            self,
+            step_id : int,
+            organisms: Iterable[OrganismModel]
+        ) -> List[CascadeStepOrganismModel]:
+
+            ids = (organism.tax_id for organism in organisms)
+            query = Select(CascadeStepOrganismModel) \
+                .where(
+                    and_(
+                        CascadeStepOrganismModel.id.in_(ids),
+                        CascadeStepSequenceModel.step_id == step_id
+                    )
+                )
+
+            return [
+                result
+                for (result,) in self.__session.execute(query)
+            ]
 
     def __init__(self, db_file: str):
         self.__db_file = db_file

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from Bio import SeqIO
 from concurrent.futures import ThreadPoolExecutor
 from typing import Awaitable, List
@@ -29,18 +30,21 @@ def initialize_cascade_database(
 def find_cascades_step(
     args : Iterable[FindOrganismsArgs]
 
-) -> List[CascadeStepResult]:
+) -> List[CascadeStepResult | BaseException]:
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        coro : Awaitable[List[CascadeStepResult]] = asyncio.gather(*
+        coro : Awaitable[List[CascadeStepResult | BaseException]] = asyncio.gather(*
                 [
                     find_organisms(arg, executor)
                     for arg in args
-                ]
+                ],
+                return_exceptions=True
             )
         results = asyncio.get_event_loop().run_until_complete(coro)
 
     return results
+
+MIN_RESULTS_UNTIL_FAILURE = 10
 
 def find_cascades(
     results_db : str,
@@ -56,21 +60,48 @@ def find_cascades(
         for arg in args
     )
 
-    while(any(identity > target_identity for identity in identities.values())):
+    # In case of a failure, we wait some time to
+    # avoid over-using the NCIB resources
+    retry_delay = 1
 
-        results = find_cascades_step(
-            arg
-            for arg in args if identities[arg.step.step_id] > target_identity
-        )
+    while(len(args) > 0):
 
-        for result in results:
+        results_with_exn = find_cascades_step(args)
 
-            identity = \
-                float(0) if len(result.organisms) == 0 else \
-                min(*[organism.identity for organism in result.organisms])
+        failed = {}
+        success = []
 
-            identities[result.step.step_id] = identity
+        for i, outcome in enumerate(results_with_exn):
+
+            # If we encounter a failre, we retry the query with
+            # asking for less results in return
+            if isinstance(outcome, BaseException):
+                arg = args[i]
+                num_results = int(arg.num_results / 2)
+
+                if num_results < MIN_RESULTS_UNTIL_FAILURE:
+                    raise outcome
+                failed[arg.step.step_id] = arg._replace(num_results = num_results)
+
+            else:
+
+                identity = \
+                    float(0) if len(outcome.organisms) == 0 else \
+                    min(*[organism.identity for organism in outcome.organisms])
+
+                identities[outcome.step.step_id] = identity
+                success.append(outcome)
 
         with store.session() as session:
-            session.save_results(results)
-            args = list(session.load_cascade_args())
+            session.save_results(success)
+            args = [
+                arg
+                for arg in session.load_cascade_args()
+                if arg.step.step_id not in failed
+                    and identities[arg.step.step_id] > target_identity
+            ] + list(failed.values())
+
+        # Exponentially increase the delay before retrying
+        # if we encountered any failures
+        retry_delay *= 1 if len(failed) == 0 else 2
+        time.sleep(retry_delay - 1)
