@@ -53,7 +53,7 @@ class CascadesModule(Module):
             f"Cowardly refusing to overwrite database at '{db_file}'"
         )
     
-        with open(spec_file_name, 'w') as spec_file:
+        with open(spec_file_name, 'r') as spec_file:
             spec = json.load(spec_file)
 
 
@@ -128,5 +128,7 @@ class CascadesModule(Module):
                 fasta_file,
                 spec_file
             )
+        else:
+            return Result.not_requested()
 
 module = CascadesModule()
