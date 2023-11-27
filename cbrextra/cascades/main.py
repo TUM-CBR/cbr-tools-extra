@@ -1,5 +1,5 @@
 """Usage:
-    cbrtools cascades query <database> <max-identity-treshold> [<step-id>,<policy>...]
+    cbrtools cascades query <database> [<max-identity-treshold>] [<step-id>,<policy>...]
     cbrtools cascades create <target-identity> <email> <database> <fasta-file> <spec-file>
 """
 from Bio import Entrez
@@ -12,7 +12,7 @@ from typing import List, TextIO
 
 from ..core.module import Context, Module, Result
 
-from .data import QueryCascadeArgs, QueryCascadeStep, QueryStepPolicy
+from .data import Optional, QueryCascadeArgs, QueryCascadeStep, QueryStepPolicy
 from .find_cascades import initialize_cascade_database, build_cascades_db
 from .query_organisms import find_cascades
 
@@ -73,25 +73,27 @@ class CascadesModule(Module):
     def __query_cascades(
         self,
         db_file : str,
-        max_identity_treshold : str, 
-        steps : List[str],
+        max_identity_treshold : Optional[str] = None,
+        steps : Optional[List[str]] = None,
         out_stream : TextIO = sys.stdout
     ):
-        query_cascade_args = [
-            QueryCascadeStep(
-                step_id=int(step_id),
-                policy=QueryStepPolicy.read(policy)
-            )
-            for step_id,policy in (step.split() for step in steps)
-        ]
 
-        result = find_cascades(
-            QueryCascadeArgs(
+        if steps is None:
+            args = None
+        else:
+            query_cascade_args = [
+                QueryCascadeStep(
+                    step_id=int(step_id),
+                    policy=QueryStepPolicy.read(policy)
+                )
+                for step_id,policy in (step.split() for step in steps)
+            ]
+            args = QueryCascadeArgs(
                 steps = query_cascade_args,
-                max_identity_treshold = float(max_identity_treshold)
-            ),
-            db_file=db_file
-        )
+                max_identity_treshold = float(max_identity_treshold or "0.9")
+            )
+
+        result = find_cascades(db_file, args)
 
         out_stream.write(result.model_dump_json())
 
@@ -106,13 +108,13 @@ class CascadesModule(Module):
 
         if options.get('query'):
             db_file = options['<database>']
-            max_identity_treshold = options['<max-identity-treshold>']
-            steps = options['<step-id>,<policy>']
+            max_identity_treshold = options.get('<max-identity-treshold>')
+            steps = options.get('<step-id>,<policy>')
 
             return self.__query_cascades(
                 db_file,
                 max_identity_treshold,
-                steps
+                steps if steps and len(steps) > 0 else None
             )
         elif options.get('create'):
             db_file = options['<database>']

@@ -24,7 +24,23 @@ class Store:
             self.__session.commit()
             self.__session.__exit__(*args, **kwargs)
 
-        def query_organisms_for_step(self, step : CascadeStepModel) -> Iterable[OrganismModel]:
+        def query_missing_organisms_for_step(
+            self,
+            step : CascadeStepModel
+        ):
+            existing = select(CascadeStepOrganismModel.organism_id) \
+                .where(CascadeStepOrganismModel.step_id == step.id)
+
+            return [
+                organism
+                for (organism,) in self.__session.execute(select(OrganismModel).where(OrganismModel.tax_id.not_in(existing)))
+            ]
+
+        def query_organisms_for_step(
+            self,
+            step : CascadeStepModel
+        ) -> Iterable[OrganismModel]:
+
             table = join(
                 OrganismModel,
                 CascadeStepOrganismModel,
@@ -52,13 +68,16 @@ class Store:
             for (step,) in self.__session.execute(select(CascadeStepModel)):
 
                 previous_organisms = [
-                    f"{organism.name} (taxid:{organism.tax_id})"
+                    organism.get_name_string()
                     for organism in self.query_organisms_for_step(step)
                 ]
                 excluded_organisms = default_exclude + previous_organisms
 
                 sequences = [
-                    CascadeSequence(seq_id = seq.seq_id, seq = seq.sequence)
+                    CascadeSequence(
+                        seq_id = cast(str, seq.seq_id),
+                        seq = cast(str, seq.sequence)
+                    )
                     for seq in self.query_sequences_for_step(step)
                 ]
 
@@ -74,6 +93,31 @@ class Store:
 
             query = select(CascadeStepModel)
             return self.__session.execute(query)
+
+        def load_missing_args(self) -> Iterable[FindOrganismsArgs]:
+            for (step,) in self.__session.execute(select(CascadeStepModel)):
+
+                included_organisms = [
+                    organism.get_name_string()
+                    for organism in self.query_missing_organisms_for_step(step)
+                ]
+
+                sequences = [
+                    CascadeSequence(
+                        seq_id = cast(str, seq.seq_id),
+                        seq = cast(str, seq.sequence)
+                    )
+                    for seq in self.query_sequences_for_step(step)
+                ]
+
+                yield FindOrganismsArgs(
+                    step = CascadeStep(
+                        step_id = step.id,
+                        step_name = step.step_name,
+                        sequences = sequences
+                    ),
+                    included_organisms=included_organisms
+                )
 
         def save_step_organisms(self, step : CascadeStepModel, step_organisms: Iterable[CascadeStepOrganism]):
 
@@ -129,17 +173,26 @@ class Store:
             self.__session.add(model)
             return model
 
-        def get_steps(self, step_ids: List[int]) -> List[CascadeStepModel]:
-            query = select(CascadeStepModel).where(
-                CascadeStepModel.id.in_(step_ids)
-            )
+        def get_steps(self, step_ids: Optional[List[int]] = None) -> List[CascadeStepModel]:
 
-            results = list(self.__session.execute(query))
-            for (result,) in results:
+            query = select(CascadeStepModel)
+            if step_ids is not None:
+                query = query.where(
+                    CascadeStepModel.id.in_(step_ids)
+                )
+
+            step_models = list(self.__session.execute(query))
+            results = [model for (model,) in step_models]
+
+            if step_ids is None:
+                return results
+
+            # Validate that all the steps that were provided actually exist
+            for result in results:
                 if result.id not in step_ids:
                     raise ValueError(f"The step {step_ids} is not in this database.")
 
-            return [result for (result,) in results]
+            return results
 
         def get_organisms_and_steps(
             self,

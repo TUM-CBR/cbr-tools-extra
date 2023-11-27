@@ -1,10 +1,10 @@
 from .data import *
-from .store import OrganismModel, Store, Tuple
+from .store import OrganismModel, Store
 from typing import cast
 
-def find_cascades(
-    cascade_args: QueryCascadeArgs,
-    db_file: str
+def find_cascades_session(
+    session: Store.StoreApi,
+    cascade_args: Optional[QueryCascadeArgs] = None
 ) -> QueryCascadeResult:
     """Search in a database of cascades and organisms for organisms of interest.
     In the arguments, a maximum identity treshold is provided which sets the maximum
@@ -20,17 +20,33 @@ def find_cascades(
     them out according to the criteria specified above.
     """
 
-    store = Store(db_file)
-    steps_specs = cascade_args.steps
-    by_step = dict((arg.step_id, arg) for arg in steps_specs)
+    if cascade_args is None:
+        step_ids = None
+        max_identity_treshold = 0
+    else:
+        step_ids = [arg.step_id for arg in cascade_args.steps]
+        max_identity_treshold = cascade_args.max_identity_treshold
 
-    with store.session() as session:
-        steps = session.get_steps(list(by_step.keys()))
-        step_identities = session.get_organisms_and_steps(steps)
+    steps = session.get_steps(step_ids)
+    step_identities = session.get_organisms_and_steps(steps)
+
+    if cascade_args is None:
+        steps_specs = [
+            QueryCascadeStep(step_id=cast(int, step.id), policy=QueryStepPolicy.any)
+            for step in steps
+        ]
+    else:
+        steps_specs = cascade_args.steps
+    by_step = dict((arg.step_id, arg) for arg in steps_specs)
 
     organisms = dict(
         (organism.tax_id, organism)
         for (_, organism) in step_identities
+    )
+
+    step_models = dict(
+        (cast(int, step.id), step)
+        for step in steps
     )
 
     all_steps : Dict[int, Dict[int, float]] = {}
@@ -48,7 +64,7 @@ def find_cascades(
 
         step_dict[tax_id] = cast(float, step_organism.identity)
 
-    def construct_steps(organism: OrganismModel):
+    def construct_steps(organism: OrganismModel) -> Optional[List[QueryCascadeResultStepEntry]]:
 
         result = []
         for step in steps_specs:
@@ -68,19 +84,27 @@ def find_cascades(
 
             if identity is not None \
                 and step.policy == QueryStepPolicy.replace \
-                and identity > cascade_args.max_identity_treshold:
+                and identity > max_identity_treshold:
                 return None
             
+            step_model = step_models[step.step_id]
+
             result.append(
                 QueryCascadeResultStepEntry(
                     step_id=step.step_id,
+                    step_name=cast(str, step_model.step_name),
                     identity=identity or 0
                 )
             )
 
+        return result
+
     result_organisms = [
         QueryCascadeResultOrganismEntry(
-            organism = Organism(tax_id=cast(int, organism.tax_id), name = cast(str, organism.name)),
+            organism = OrganismResultEntry(
+                tax_id=cast(int, organism.tax_id),
+                name = cast(str, organism.name)
+            ),
             steps = steps
         )
         for organism in organisms.values()
@@ -88,3 +112,11 @@ def find_cascades(
     ]
 
     return QueryCascadeResult(organisms=result_organisms)
+
+def find_cascades(
+    db_file: str,
+    cascade_args: Optional[QueryCascadeArgs] = None
+):
+    store = Store(db_file)
+    with store.session() as session:
+        return find_cascades_session(session, cascade_args)

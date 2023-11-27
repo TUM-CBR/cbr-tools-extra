@@ -105,12 +105,17 @@ class QueryCascadeArgs(NamedTuple):
     steps : List[QueryCascadeStep]
     max_identity_treshold : float
 
+class OrganismResultEntry(BaseModel):
+    tax_id : int
+    name : str
+
 class QueryCascadeResultStepEntry(BaseModel):
     step_id : int
+    step_name : str
     identity : float
 
 class QueryCascadeResultOrganismEntry(BaseModel):
-    organism : Organism
+    organism : OrganismResultEntry
     steps : List[QueryCascadeResultStepEntry]
 
 class QueryCascadeResult(BaseModel):

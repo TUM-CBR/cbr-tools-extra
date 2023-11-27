@@ -10,6 +10,9 @@ class OrganismModel(Base):
     name = Column(String)
     cascade_organisms = relationship('CascadeStepOrganismModel', back_populates='organism')
 
+    def get_name_string(self):
+        return f"{self.name} (taxid:{self.tax_id})"
+
 class CascadeStepOrganismModel(Base):
     __tablename__ = "cascade_step_organism"
     id = Column(Integer, Sequence("cascade_organism_id"), primary_key=True)

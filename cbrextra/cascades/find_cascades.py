@@ -44,6 +44,27 @@ def find_cascades_step(
 
     return results
 
+def query_missing(
+    store : Store
+):
+
+    with store.session() as session:
+        missing = list(session.load_missing_args())
+
+    results_with_exn = find_cascades_step(missing)
+
+    success : List[CascadeStepResult] = []
+
+    for (arg, outcome) in zip(missing, results_with_exn):
+
+        if isinstance(outcome, BaseException):
+            continue
+
+        success.append(outcome)
+
+    with store.session() as session:
+        session.save_results(success)
+
 MIN_RESULTS_UNTIL_FAILURE = 10
 
 def build_cascades_db(
@@ -100,6 +121,12 @@ def build_cascades_db(
                 if arg.step.step_id not in failed
                     and identities[arg.step.step_id] > target_identity
             ] + list(failed.values())
+
+        # For every step in the cascade, find the organisms
+        # for which it is unmatched and query those organisms
+        # specifically to check the identities in order
+        # to reduce false positives
+        query_missing(store)
 
         # Exponentially increase the delay before retrying
         # if we encountered any failures
