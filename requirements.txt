@@ -2,7 +2,7 @@ altgraph==0.17.3
 annotated-types==0.5.0
 asttokens==2.4.0
 backcall==0.2.0
-biopython @ git+https://github.com/netogallo/biopython.git@09317e44853228a450ef289d1003641d7a49d298
+biopython @ git+https://github.com/netogallo/biopython.git@468950f17f79c9afd4245b42032e792e7482d6fa
 decorator==5.1.1
 docopt==0.6.2
 executing==1.2.0
