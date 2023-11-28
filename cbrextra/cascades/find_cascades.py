@@ -1,12 +1,10 @@
 import asyncio
-import time
 from Bio import SeqIO
-from concurrent.futures import ThreadPoolExecutor
-from typing import Awaitable, List
-from .store import Iterable, Store
+from concurrent.futures import Executor, ThreadPoolExecutor
+from typing import cast, List
 
-from .data import CascadeStepResult, FindOrganismsArgs
 from .find_organisms import find_organisms
+from .store import Store
 
 def initialize_cascade_database(
     results_db : str,
@@ -27,45 +25,75 @@ def initialize_cascade_database(
                 seq = sequences[seq_id]
                 session.create_step_seq(step, seq)
 
-def find_cascades_step(
-    args : Iterable[FindOrganismsArgs]
+MIN_RESULTS_UNTIL_FAILURE = 10
 
-) -> List[CascadeStepResult | BaseException]:
+async def add_missing(
+    step_id: int,
+    store : Store,
+    executor : Executor,
+    throw_exceptions = False
+    ):
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        coro : Awaitable[List[CascadeStepResult | BaseException]] = asyncio.gather(*
-                [
-                    find_organisms(arg, executor)
-                    for arg in args
-                ],
-                return_exceptions=True
-            )
-        results = asyncio.get_event_loop().run_until_complete(coro)
+    with store.session() as session:
+        missing = list(session.load_missing_args([step_id]))
 
-    return results
+    assert len(missing) < 2
+    if len(missing) == 0:
+        return
 
-def query_missing(
-    store : Store
+    missing_arg = missing[0]
+    missing_result = None
+
+    try:
+        missing_result = await find_organisms(missing_arg, executor)
+    except Exception as e:
+        if throw_exceptions:
+            raise e
+
+    if missing_result is not None:
+        with store.session() as session:
+            session.save_results([missing_result])
+
+async def build_cascades_for_step(
+    step_id : int,
+    store : Store,
+    target_identity : float,
+    executor : Executor
 ):
 
     with store.session() as session:
-        missing = list(session.load_missing_args())
+        [arg] = session.load_cascade_args([step_id])
 
-    results_with_exn = find_cascades_step(missing)
+    current_identity = 1
+    num_results = arg.num_results
+    retry_delay = 1
 
-    success : List[CascadeStepResult] = []
+    while(current_identity > target_identity):
 
-    for (arg, outcome) in zip(missing, results_with_exn):
-
-        if isinstance(outcome, BaseException):
+        try:
+            results = await find_organisms(
+                arg._replace(num_results = num_results),
+                executor
+            )
+        except TypeError as e:
+            raise e
+        except Exception as e:
+            num_results = num_results / 2
+            retry_delay *= 2
+            if num_results < MIN_RESULTS_UNTIL_FAILURE:
+                raise e
+            await asyncio.sleep(retry_delay)
             continue
 
-        success.append(outcome)
+        current_identity = \
+            float(0) if len(results.organisms) == 0 else \
+            min(*[organism.identity for organism in results.organisms])
 
-    with store.session() as session:
-        session.save_results(success)
+        with store.session() as session:
+            session.save_results([results])
+            [arg] = session.load_cascade_args([step_id])
 
-MIN_RESULTS_UNTIL_FAILURE = 10
+        await add_missing(step_id, store, executor)
 
 def build_cascades_db(
     results_db : str,
@@ -73,65 +101,28 @@ def build_cascades_db(
 ):
 
     store = Store(results_db)
+    
     with store.session() as session:
-        args = list(session.load_cascade_args())
+        steps = [cast(int, step.id) for step in session.get_steps()]
 
-    identities = dict(
-        (arg.step.step_id, float(1))
-        for arg in args
-    )
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        operations = [
+            build_cascades_for_step(cast(int, step), store, target_identity, executor)
+            for step in steps
+        ]
 
-    # In case of a failure, we wait some time to
-    # avoid over-using the NCIB resources
-    retry_delay = 1
+        # If a single operation fails, don't cancel the
+        # rest. Collect the results and exceptions and
+        # raise afterwards if necessary
+        results = asyncio.gather(
+            *operations,
+            return_exceptions=True,
+        )
 
-    while(len(args) > 0):
+        for result in results.result():
+            if isinstance(result, BaseException):
+                raise result
 
-        results_with_exn = find_cascades_step(args)
-
-        failed = {}
-        success = []
-
-        for i, outcome in enumerate(results_with_exn):
-
-            # Check if it is an exception that cannot be recoverded from
-            if isinstance(outcome, TypeError):
-                raise outcome
-            # If we encounter a failre, we retry the query with
-            # asking for less results in return
-            elif isinstance(outcome, BaseException):
-                arg = args[i]
-                num_results = int(arg.num_results / 2)
-
-                if num_results < MIN_RESULTS_UNTIL_FAILURE:
-                    raise outcome
-                failed[arg.step.step_id] = arg._replace(num_results = num_results)
-
-            else:
-
-                identity = \
-                    float(0) if len(outcome.organisms) == 0 else \
-                    min(*[organism.identity for organism in outcome.organisms])
-
-                identities[outcome.step.step_id] = identity
-                success.append(outcome)
-
-        with store.session() as session:
-            session.save_results(success)
-            args = [
-                arg
-                for arg in session.load_cascade_args()
-                if arg.step.step_id not in failed
-                    and identities[arg.step.step_id] > target_identity
-            ] + list(failed.values())
-
-        # For every step in the cascade, find the organisms
-        # for which it is unmatched and query those organisms
-        # specifically to check the identities in order
-        # to reduce false positives
-        query_missing(store)
-
-        # Exponentially increase the delay before retrying
-        # if we encountered any failures
-        retry_delay *= 1 if len(failed) == 0 else 2
-        time.sleep(retry_delay - 1)
+        # Query missing one last time with all the results
+        # that have been gathered
+        asyncio.gather(*[add_missing(step, store, executor) for step in steps]).result()

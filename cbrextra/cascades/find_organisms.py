@@ -168,7 +168,7 @@ async def find_organisms(
 
     blast_results = await asyncio.gather(*
         [
-            asyncio.get_event_loop().run_in_executor(executor, query_step, fasta)
+            asyncio.get_running_loop().run_in_executor(executor, query_step, fasta)
             for fasta in step.fasta
         ]
     )

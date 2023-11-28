@@ -63,9 +63,14 @@ class Store:
                 for (seq,) in self.__session.execute(query)
             ]
 
-        def load_cascade_args(self) -> Iterable[FindOrganismsArgs]:
+        def load_cascade_args(self, step_ids : Optional[List[int]] = None) -> Iterable[FindOrganismsArgs]:
 
-            for (step,) in self.__session.execute(select(CascadeStepModel)):
+            query = select(CascadeStepModel)
+
+            if step_ids is not None:
+                query = query.where(CascadeStepModel.id.in_(step_ids))
+
+            for (step,) in self.__session.execute(query):
 
                 previous_organisms = [
                     organism.get_name_string()
@@ -94,13 +99,22 @@ class Store:
             query = select(CascadeStepModel)
             return self.__session.execute(query)
 
-        def load_missing_args(self) -> Iterable[FindOrganismsArgs]:
-            for (step,) in self.__session.execute(select(CascadeStepModel)):
+        def load_missing_args(self, step_ids : Optional[List[int]] = None) -> Iterable[FindOrganismsArgs]:
+
+            query = select(CascadeStepModel)
+
+            if step_ids is not None:
+                query = query.where(CascadeStepModel.id.in_(step_ids))
+
+            for (step,) in self.__session.execute(query):
 
                 included_organisms = [
                     organism.get_name_string()
                     for organism in self.query_missing_organisms_for_step(step)
                 ]
+
+                if len(included_organisms) == 0:
+                    continue
 
                 sequences = [
                     CascadeSequence(
