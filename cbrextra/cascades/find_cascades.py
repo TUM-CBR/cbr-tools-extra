@@ -94,9 +94,12 @@ def build_cascades_db(
 
         for i, outcome in enumerate(results_with_exn):
 
+            # Check if it is an exception that cannot be recoverded from
+            if isinstance(outcome, TypeError):
+                raise outcome
             # If we encounter a failre, we retry the query with
             # asking for less results in return
-            if isinstance(outcome, BaseException):
+            elif isinstance(outcome, BaseException):
                 arg = args[i]
                 num_results = int(arg.num_results / 2)
 
