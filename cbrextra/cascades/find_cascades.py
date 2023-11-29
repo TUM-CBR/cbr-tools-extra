@@ -1,10 +1,12 @@
 import asyncio
 from Bio import SeqIO
 from concurrent.futures import Executor, ThreadPoolExecutor
-from typing import cast, List
+import json
+import sys
+from typing import cast, List, TextIO
 
 from .find_organisms import find_organisms
-from .store import Store
+from .store import FindOrganismsArgs, Iterable, NamedTuple, Optional, Store
 
 def initialize_cascade_database(
     results_db : str,
@@ -25,17 +27,58 @@ def initialize_cascade_database(
                 seq = sequences[seq_id]
                 session.create_step_seq(step, seq)
 
+class RunCascadesContext(NamedTuple):
+    store : Store
+    executor : Executor
+    out_stream : TextIO
+    domain : Optional[str]
+
+    def write_status(self, info: dict):
+        info['type'] = 'status'
+
+        self.out_stream.write(json.dumps(info))
+        self.out_stream.write("\n")
+        self.out_stream.flush()
+
+    def write_error(
+        self,
+        step: int,
+        error : Exception,
+        extra : Optional[dict] = None
+    ):
+        extra = extra or {}
+        extra['step'] = step
+        extra['error'] = str(error)
+
+        self.write_status(extra)
+
+    def with_domain(self, arg : FindOrganismsArgs) -> FindOrganismsArgs:
+        if self.domain is None:
+            return arg
+
+        return arg._replace(included_organisms=[self.domain])
+
+    def with_domains(self, args: Iterable[FindOrganismsArgs]) -> List[FindOrganismsArgs]:
+        return [self.with_domain(arg) for arg in args]
+
 MIN_RESULTS_UNTIL_FAILURE = 10
 
 async def add_missing(
+    context : RunCascadesContext,
     step_id: int,
-    store : Store,
-    executor : Executor,
     throw_exceptions = False
     ):
 
+    store = context.store
+    executor = context.executor
+
     with store.session() as session:
-        missing = list(session.load_missing_args([step_id]))
+        missing = context.with_domains(session.load_missing_args([step_id]))
+
+    context.write_status({
+        'step': step_id,
+        'missing_organisms': len(missing)
+    })
 
     assert len(missing) < 2
     if len(missing) == 0:
@@ -47,6 +90,7 @@ async def add_missing(
     try:
         missing_result = await find_organisms(missing_arg, executor)
     except Exception as e:
+        context.write_error(step_id, e)
         if throw_exceptions:
             raise e
 
@@ -55,18 +99,27 @@ async def add_missing(
             session.save_results([missing_result])
 
 async def build_cascades_for_step(
+    context : RunCascadesContext,
     step_id : int,
-    store : Store,
-    target_identity : float,
-    executor : Executor
+    target_identity : float
 ):
+    store = context.store
+    executor = context.executor
 
     with store.session() as session:
-        [arg] = session.load_cascade_args([step_id])
+        [arg] = context.with_domains(session.load_cascade_args([step_id]))
 
     current_identity = 1
     num_results = arg.num_results
     retry_delay = 1
+
+    def ping():
+        context.write_status({
+            'step': step_id,
+            'current_identity': current_identity
+        })
+
+    ping()
 
     while(current_identity > target_identity):
 
@@ -78,6 +131,13 @@ async def build_cascades_for_step(
         except TypeError as e:
             raise e
         except Exception as e:
+            context.write_error(
+                step_id,
+                e,
+                {
+                    'num_results': num_results
+                }
+            )
             num_results = num_results / 2
             retry_delay *= 2
             if num_results < MIN_RESULTS_UNTIL_FAILURE:
@@ -89,40 +149,53 @@ async def build_cascades_for_step(
             float(0) if len(results.organisms) == 0 else \
             min(*[organism.identity for organism in results.organisms])
 
+        ping()
+
         with store.session() as session:
             session.save_results([results])
-            [arg] = session.load_cascade_args([step_id])
+            [arg] = context.with_domains(session.load_cascade_args([step_id]))
 
-        await add_missing(step_id, store, executor)
+        await add_missing(context, step_id)
 
-def build_cascades_db(
+async def build_cascades_db(
     results_db : str,
-    target_identity : float
+    target_identity : float,
+    out_stream : TextIO = sys.stdout,
+    domain : Optional[str] = None
 ):
-
     store = Store(results_db)
     
     with store.session() as session:
         steps = [cast(int, step.id) for step in session.get_steps()]
 
     with ThreadPoolExecutor(max_workers=4) as executor:
+
+        context = RunCascadesContext(
+            store = store,
+            executor=executor,
+            out_stream=out_stream,
+            domain=domain
+        )
+
         operations = [
-            build_cascades_for_step(cast(int, step), store, target_identity, executor)
-            for step in steps
+                build_cascades_for_step(
+                    context,
+                    cast(int, step),
+                    target_identity
+                )
+                for step in steps
         ]
 
         # If a single operation fails, don't cancel the
         # rest. Collect the results and exceptions and
         # raise afterwards if necessary
-        results = asyncio.gather(
-            *operations,
-            return_exceptions=True,
-        )
+        results = await asyncio.gather(*operations, return_exceptions=True)
 
-        for result in results.result():
-            if isinstance(result, BaseException):
-                raise result
+        for result in results:
+            exn = result
+            if exn is not None:
+                raise exn
 
         # Query missing one last time with all the results
         # that have been gathered
-        asyncio.gather(*[add_missing(step, store, executor) for step in steps]).result()
+        asyncio.gather(*[add_missing(context, step) for step in steps]).result()

@@ -1,7 +1,8 @@
 """Usage:
     cbrtools cascades query <database> [<max-identity-treshold>] [<step-id>,<policy>...]
-    cbrtools cascades create <target-identity> <email> <database> <fasta-file> <spec-file>
+    cbrtools cascades create <target-identity> <email> <database> <fasta-file> <spec-file> [--domain=<domain>]
 """
+import asyncio
 from Bio import Entrez
 from docopt import docopt
 import json
@@ -36,7 +37,9 @@ class CascadesModule(Module):
         email : str,
         db_file : str,
         fasta_file : str,
-        spec_file_name : str
+        spec_file_name : str,
+        out_stream : TextIO = sys.stdout,
+        domain : Optional[str] = None
     ):
 
         if not is_email(email):
@@ -63,9 +66,13 @@ class CascadesModule(Module):
             spec
         )
 
-        build_cascades_db(
-            db_file,
-            target_identity
+        asyncio.run(
+            build_cascades_db(
+                db_file,
+                target_identity,
+                out_stream,
+                domain=domain
+            )
         )
 
         return Result.success()
@@ -122,13 +129,15 @@ class CascadesModule(Module):
             fasta_file = options['<fasta-file>']
             spec_file = options['<spec-file>']
             email = options['<email>']
+            domain = options.get("--domain")
 
             return self.__create_cascades(
                 target_identity,
                 email,
                 db_file,
                 fasta_file,
-                spec_file
+                spec_file,
+                domain=domain
             )
         else:
             return Result.not_requested()
