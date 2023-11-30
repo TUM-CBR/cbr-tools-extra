@@ -10,6 +10,7 @@ import re
 from typing import Dict, Iterable, List
 
 from .data import *
+from .support import BlastMonitor, RunCascadesContext
 
 
 K_ID_LIST = 'IDList'
@@ -124,6 +125,7 @@ def get_organisms_for_accesions(accessions: Iterable[str]) -> Dict[str, Organism
 
 
 async def find_organisms(
+    context : RunCascadesContext,
     args : FindOrganismsArgs,
     executor : Executor
 ) -> CascadeStepResult:
@@ -159,7 +161,9 @@ async def find_organisms(
                 alignments = num_results,
                 descriptions = num_results,
                 max_num_seq = num_results,
-                organisms=organisms
+                organisms=organisms,
+                status_timeout=100,
+                status_monitor=BlastMonitor(args.step.step_id, context)
             )
 
         result = blastxml.read(buffer)

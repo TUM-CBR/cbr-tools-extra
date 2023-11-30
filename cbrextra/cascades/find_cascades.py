@@ -1,12 +1,12 @@
 import asyncio
 from Bio import SeqIO
-from concurrent.futures import Executor, ThreadPoolExecutor
-import json
+from concurrent.futures import ThreadPoolExecutor
 import sys
 from typing import cast, List, TextIO
 
 from .find_organisms import find_organisms
-from .store import FindOrganismsArgs, Iterable, NamedTuple, Optional, Store
+from .store import Optional, Store
+from .support import RunCascadesContext
 
 def initialize_cascade_database(
     results_db : str,
@@ -27,39 +27,6 @@ def initialize_cascade_database(
                 seq = sequences[seq_id]
                 session.create_step_seq(step, seq)
 
-class RunCascadesContext(NamedTuple):
-    store : Store
-    executor : Executor
-    out_stream : TextIO
-    domain : Optional[str]
-
-    def write_status(self, info: dict):
-        info['type'] = 'status'
-
-        self.out_stream.write(json.dumps(info))
-        self.out_stream.write("\n")
-        self.out_stream.flush()
-
-    def write_error(
-        self,
-        step: int,
-        error : Exception,
-        extra : Optional[dict] = None
-    ):
-        extra = extra or {}
-        extra['step'] = step
-        extra['error'] = str(error)
-
-        self.write_status(extra)
-
-    def with_domain(self, arg : FindOrganismsArgs) -> FindOrganismsArgs:
-        if self.domain is None:
-            return arg
-
-        return arg._replace(included_organisms=[self.domain])
-
-    def with_domains(self, args: Iterable[FindOrganismsArgs]) -> List[FindOrganismsArgs]:
-        return [self.with_domain(arg) for arg in args]
 
 MIN_RESULTS_UNTIL_FAILURE = 10
 
@@ -88,7 +55,7 @@ async def add_missing(
     missing_result = None
 
     try:
-        missing_result = await find_organisms(missing_arg, executor)
+        missing_result = await find_organisms(context, missing_arg, executor)
     except Exception as e:
         context.write_error(step_id, e)
         if throw_exceptions:
@@ -125,6 +92,7 @@ async def build_cascades_for_step(
 
         try:
             results = await find_organisms(
+                context,
                 arg._replace(num_results = num_results),
                 executor
             )
@@ -168,7 +136,7 @@ async def build_cascades_db(
     with store.session() as session:
         steps = [cast(int, step.id) for step in session.get_steps()]
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
 
         context = RunCascadesContext(
             store = store,
