@@ -198,4 +198,4 @@ async def build_cascades_db(
 
         # Query missing one last time with all the results
         # that have been gathered
-        asyncio.gather(*[add_missing(context, step) for step in steps]).result()
+        await asyncio.gather(*[add_missing(context, step) for step in steps])
