@@ -1,6 +1,7 @@
 """Usage:
     cbrtools cascades query <database> [<max-identity-treshold>] [<step-id>,<policy>...]
     cbrtools cascades create <target-identity> <email> <database> <fasta-file> <spec-file> [--domain=<domain>]
+    cbrtools cascades add-missing <email> <database>
 """
 import asyncio
 from Bio import Entrez
@@ -14,7 +15,7 @@ from typing import List, TextIO
 from ..core.module import Context, Module, Result
 
 from .data import Optional, QueryCascadeArgs, QueryCascadeStep, QueryStepPolicy
-from .find_cascades import initialize_cascade_database, build_cascades_db
+from .find_cascades import add_missing_organisms, initialize_cascade_database, build_cascades_db
 from .query_organisms import find_cascades
 
 
@@ -30,6 +31,25 @@ too excesively.
 """
 
 class CascadesModule(Module):
+
+    def __add_missing(
+        self,
+        email : str,
+        db_file : str,
+        out_stream : TextIO = sys.stdout
+    ):
+
+        if not is_email(email):
+            raise ValueError(INVALID_EMAIL_MSG)
+
+        Entrez.email = email
+
+        if not path.exists(db_file):
+            raise ValueError(f"There is no database at {db_file}")
+
+        asyncio.run(add_missing_organisms(db_file, out_stream))
+
+        return Result.success()
 
     def __create_cascades(
         self,
@@ -139,6 +159,10 @@ class CascadesModule(Module):
                 spec_file,
                 domain=domain
             )
+        elif options.get("add-missing"):
+            db_file = options['<database>']
+            email = options['<email>']
+            return self.__add_missing(email, db_file)
         else:
             return Result.not_requested()
 

@@ -40,7 +40,7 @@ async def add_missing(
     executor = context.executor
 
     with store.session() as session:
-        missing = context.with_domains(session.load_missing_args([step_id]))
+        missing = list(session.load_missing_args([step_id]))
 
     context.write_status({
         'step': step_id,
@@ -64,6 +64,36 @@ async def add_missing(
     if missing_result is not None:
         with store.session() as session:
             session.save_results([missing_result])
+
+MAX_BLAST_CONCURRENT_REQUESTS = 1
+
+async def add_missing_organisms(
+    db_file : str,
+    out_stream : TextIO
+):
+    store = Store(db_file)
+
+    with ThreadPoolExecutor(max_workers = MAX_BLAST_CONCURRENT_REQUESTS) as executor:
+        context = RunCascadesContext(
+            store = store,
+            executor=executor,
+            out_stream=out_stream,
+            domain=None
+        )
+
+        with store.session() as session:
+            steps = [cast(int, step.id) for step in session.get_steps()]
+
+        # We don't want exceptions to interrupt other steps,
+        # nevertheless, we also want to throw the exception (if any)
+        exns = await asyncio.gather(
+            *[add_missing(context, step, throw_exceptions=True) for step in steps],
+            return_exceptions=True
+        )
+
+        for e in exns:
+            if isinstance(e, BaseException):
+                raise e
 
 async def build_cascades_for_step(
     context : RunCascadesContext,
@@ -136,7 +166,7 @@ async def build_cascades_db(
     with store.session() as session:
         steps = [cast(int, step.id) for step in session.get_steps()]
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=MAX_BLAST_CONCURRENT_REQUESTS) as executor:
 
         context = RunCascadesContext(
             store = store,
