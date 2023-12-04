@@ -1,4 +1,5 @@
 import asyncio
+from io import StringIO
 from Bio import Entrez as entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement
 from Bio.Blast.Record import Blast
@@ -8,6 +9,7 @@ from concurrent.futures import Executor
 from itertools import groupby
 import re
 from typing import Dict, Iterable, List
+from xml.parsers.expat import ExpatError
 
 from .data import *
 from .support import BlastMonitor, RunCascadesContext
@@ -152,7 +154,7 @@ async def find_organisms(
         organisms[organism] = True
 
     def query_step(fasta: str) -> Blast:
-        buffer = \
+        buffer : StringIO = \
             blast.qblast(
                 database = "nr",
                 sequence = fasta,
@@ -166,7 +168,18 @@ async def find_organisms(
                 status_monitor=BlastMonitor(args.step.step_id, context)
             )
 
-        result = blastxml.read(buffer)
+        try:
+            result = blastxml.read(buffer)
+        except ExpatError as e:
+            buffer.seek(0)
+            context.write_error(
+                step.step_id,
+                e,
+                {
+                    "xml": buffer.read()
+                }
+            )
+            raise e
         assert isinstance(result, Blast)
         return result
 
@@ -189,7 +202,22 @@ async def find_organisms(
         sequence = step.sequences[result_ix]
         for alignment in result.alignments:
             accession = alignment.accession
-            organism = accession_to_organism[accession]
+            organism = accession_to_organism.get(accession)
+
+            # Sometiems BLAST gives you accessions that do not show
+            # up when doing esearch. On Dec. 4th 2023, the following did not
+            # work 'esearch -db nucleotide -query "CP137621[Accession]"'. This
+            # accession is valid but does appear in the results.
+            # We skip this entry as there is no point in failing an entire
+            # search for an accession that cannot be found.
+            if organism is None:
+
+                context.write_error(
+                    args.step.step_id,
+                    Exception(f"Got unknown accession {accession} for {alignment}")
+                )
+                continue
+
             closets_match = max(
                 alignment.hsps,
                 key = lambda hsps: hsps.identities

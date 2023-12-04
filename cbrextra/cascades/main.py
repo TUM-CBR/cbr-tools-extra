@@ -1,7 +1,7 @@
 """Usage:
     cbrtools cascades query <database> [<max-identity-treshold>] [<step-id>,<policy>...]
     cbrtools cascades create <target-identity> <email> <database> <fasta-file> <spec-file> [--domain=<domain>]
-    cbrtools cascades add-missing <email> <database>
+    cbrtools cascades add-missing <email> <database> [--included-steps=<steps>]
 """
 import asyncio
 from Bio import Entrez
@@ -15,7 +15,7 @@ from typing import List, TextIO
 from ..core.module import Context, Module, Result
 
 from .data import Optional, QueryCascadeArgs, QueryCascadeStep, QueryStepPolicy
-from .find_cascades import add_missing_organisms, initialize_cascade_database, build_cascades_db
+from .find_cascades import add_missing_organisms_main, initialize_cascade_database, build_cascades_db
 from .query_organisms import find_cascades
 
 
@@ -36,7 +36,8 @@ class CascadesModule(Module):
         self,
         email : str,
         db_file : str,
-        out_stream : TextIO = sys.stdout
+        out_stream : TextIO = sys.stdout,
+        included_steps : Optional[str] = None
     ):
 
         if not is_email(email):
@@ -47,7 +48,18 @@ class CascadesModule(Module):
         if not path.exists(db_file):
             raise ValueError(f"There is no database at {db_file}")
 
-        asyncio.run(add_missing_organisms(db_file, out_stream))
+        if included_steps is not None:
+            steps = [int(step) for step in included_steps.split(",")]
+        else:
+            steps = None
+
+        asyncio.run(
+            add_missing_organisms_main(
+                db_file,
+                out_stream,
+                steps
+            )
+        )
 
         return Result.success()
 
@@ -162,7 +174,12 @@ class CascadesModule(Module):
         elif options.get("add-missing"):
             db_file = options['<database>']
             email = options['<email>']
-            return self.__add_missing(email, db_file)
+            steps = options.get("--included-steps")
+            return self.__add_missing(
+                email,
+                db_file,
+                included_steps=steps
+            )
         else:
             return Result.not_requested()
 

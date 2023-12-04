@@ -5,7 +5,7 @@ import sys
 from typing import cast, List, TextIO
 
 from .find_organisms import find_organisms
-from .store import Optional, Store
+from .store import CascadeStepOrganism, Optional, Store
 from .support import RunCascadesContext
 
 def initialize_cascade_database(
@@ -42,17 +42,17 @@ async def add_missing(
     with store.session() as session:
         missing = list(session.load_missing_args([step_id]))
 
-    context.write_status({
-        'step': step_id,
-        'missing_organisms': len(missing)
-    })
-
     assert len(missing) < 2
     if len(missing) == 0:
         return
 
     missing_arg = missing[0]
     missing_result = None
+    
+    context.write_status({
+        'step': step_id,
+        'missing_organisms': len(missing_arg.included_organisms or [])
+    })
 
     try:
         missing_result = await find_organisms(context, missing_arg, executor)
@@ -67,9 +67,12 @@ async def add_missing(
 
 MAX_BLAST_CONCURRENT_REQUESTS = 1
 
-async def add_missing_organisms(
+UNRECOVERABLE = (TypeError,)
+
+async def add_missing_organisms_main(
     db_file : str,
-    out_stream : TextIO
+    out_stream : TextIO,
+    included_steps : Optional[List[int]] = None
 ):
     store = Store(db_file)
 
@@ -80,20 +83,51 @@ async def add_missing_organisms(
             out_stream=out_stream,
             domain=None
         )
+        await add_missing_organisms(context, included_steps)
 
-        with store.session() as session:
-            steps = [cast(int, step.id) for step in session.get_steps()]
+async def add_missing_organisms(
+    context : RunCascadesContext,
+    included_steps : Optional[List[int]] = None
+):
 
-        # We don't want exceptions to interrupt other steps,
-        # nevertheless, we also want to throw the exception (if any)
-        exns = await asyncio.gather(
-            *[add_missing(context, step, throw_exceptions=True) for step in steps],
-            return_exceptions=True
-        )
+    store = context.store
 
-        for e in exns:
-            if isinstance(e, BaseException):
-                raise e
+    with store.session() as session:
+        steps = [
+            step_id for step in session.get_steps()
+            for step_id in [cast(int, step.id)]
+            if included_steps is None or step_id in included_steps
+        ]
+
+    async def add_missing_retry(step : int):
+        retries = 5
+        delay = 8
+
+        while True:
+            try:
+                return await add_missing(context, step, throw_exceptions = True)
+            except Exception as e:
+
+                if isinstance(e, UNRECOVERABLE):
+                    raise e
+
+                if retries > 0:
+                    retries -= 1
+                    delay *= 2
+                    await asyncio.sleep(delay)
+                else:
+                    raise e
+
+    # We don't want exceptions to interrupt other steps,
+    # nevertheless, we also want to throw the exception (if any)
+    exns = await asyncio.gather(
+        *[add_missing_retry(step) for step in steps],
+        return_exceptions=True
+    )
+
+    for e in exns:
+        if isinstance(e, BaseException):
+            raise e
 
 async def build_cascades_for_step(
     context : RunCascadesContext,
@@ -110,11 +144,18 @@ async def build_cascades_for_step(
     num_results = arg.num_results
     retry_delay = 1
 
-    def ping():
-        context.write_status({
-            'step': step_id,
-            'current_identity': current_identity
-        })
+    def ping(organisms : Optional[List[CascadeStepOrganism]] = None):
+
+        new_organisms = [('new_organisms', len(organisms))] if organisms is not None else []
+        message = dict(
+            [
+                ('step', step_id),
+                ('current_identity', current_identity)
+            ]
+            + new_organisms
+        )
+
+        context.write_status(message)
 
     ping()
 
@@ -126,9 +167,11 @@ async def build_cascades_for_step(
                 arg._replace(num_results = num_results),
                 executor
             )
-        except TypeError as e:
-            raise e
         except Exception as e:
+
+            if isinstance(e, UNRECOVERABLE):
+                raise e
+
             context.write_error(
                 step_id,
                 e,
@@ -147,7 +190,7 @@ async def build_cascades_for_step(
             float(0) if len(results.organisms) == 0 else \
             min(*[organism.identity for organism in results.organisms])
 
-        ping()
+        ping(results.organisms)
 
         with store.session() as session:
             session.save_results([results])
@@ -196,4 +239,4 @@ async def build_cascades_db(
 
         # Query missing one last time with all the results
         # that have been gathered
-        await asyncio.gather(*[add_missing(context, step) for step in steps])
+        await add_missing_organisms(context)
