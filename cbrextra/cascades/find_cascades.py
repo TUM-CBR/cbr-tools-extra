@@ -63,7 +63,14 @@ async def add_missing(
 
     if missing_result is not None:
         with store.session() as session:
-            session.save_results([missing_result])
+
+            # It is possible to get organisms distinct from what is in scope of the query
+            # this can happen if the taxid that is provided corresponds to a domain that
+            # contains many organisms (like Escherichia coli (taxid:562)). If we add organisms
+            # that don't exist in the database, we will enter a cycle of having to then run
+            # this query again for the remaining sequences until we reach a fixpoint. This is
+            # not desirable, so we reject any organism that is not in the database.
+            session.save_results([missing_result], reject_new_organisms=True)
 
 MAX_BLAST_CONCURRENT_REQUESTS = 1
 

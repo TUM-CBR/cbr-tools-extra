@@ -133,7 +133,17 @@ class Store:
                     included_organisms=included_organisms
                 )
 
-        def save_step_organisms(self, step : CascadeStepModel, step_organisms: Iterable[CascadeStepOrganism]):
+        def save_step_organisms(
+            self,
+            step : CascadeStepModel,
+            step_organisms: Iterable[CascadeStepOrganism],
+            reject_new_organisms : bool = False
+        ):
+            if reject_new_organisms:
+                query = select(OrganismModel.tax_id)
+                current_tax_ids = [tax_id for (tax_id,) in self.__session.execute(query)]
+            else:
+                current_tax_ids = None
 
             self.__session.add_all(
                 CascadeStepOrganismModel(
@@ -143,6 +153,7 @@ class Store:
                     identity = step_organism.identity
                 )
                 for step_organism in step_organisms
+                if current_tax_ids is None or step_organism.organism.tax_id in current_tax_ids
             )
 
         def get_or_create_organism(self, organism: Organism) -> OrganismModel:
@@ -162,7 +173,11 @@ class Store:
             return new_model
             
 
-        def save_results(self, results: Iterable[CascadeStepResult]) -> None:
+        def save_results(
+            self,
+            results: Iterable[CascadeStepResult],
+            reject_new_organisms : bool = False
+        ) -> None:
             for result in results:
                 step_result = self.__session.execute(select(CascadeStepModel) \
                     .where(CascadeStepModel.id == result.step.step_id)) \
@@ -171,7 +186,7 @@ class Store:
                 assert step_result is not None
                 (step,) = step_result
 
-                self.save_step_organisms(step, result.organisms)
+                self.save_step_organisms(step, result.organisms, reject_new_organisms)
 
         def create_step(self, value: dict) -> CascadeStepModel:
             model = CascadeStepModel.from_dict(value)
