@@ -1,3 +1,5 @@
+use super::super::histon::data::VecRelation;
+
 #[derive(Debug, Copy, Clone)]
 pub struct  Point {
     x : f32,
@@ -62,6 +64,14 @@ impl Range3d {
         }
     }
 
+    pub fn near_end(&self) -> Point {
+        return Point {
+            x: self.range_x.0,
+            y: self.range_y.0,
+            z: self.range_z.0
+        }
+    }
+
     pub fn widen(&mut self, x: f32, y: f32, z:f32) {
 
         self.range_x = (min_f32(self.range_x.0, x), max_f32(self.range_x.1, x));
@@ -96,7 +106,7 @@ impl Range3d {
     }
 }
 
-pub fn bounding_sphere(points : Vec<Point>) -> Sphere {
+pub fn bounding_sphere(points : &Vec<Point>) -> Sphere {
 
     if points.len() == 0 {
         return Sphere::ZERO;
@@ -106,8 +116,7 @@ pub fn bounding_sphere(points : Vec<Point>) -> Sphere {
     }
 
     let range = Range3d::get_range(&points);
-    let large_spread = range.spread() * 100.0;
-    let far_away = range.far_end().scale(large_spread);
+    let rel : VecRelation = ("points", points).into();
 
     return Sphere::ZERO;
 }

@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 
+pub mod histon;
 pub mod protdeflator;
 
 use protdeflator::screen::sum;
