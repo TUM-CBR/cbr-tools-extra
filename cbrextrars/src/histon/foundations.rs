@@ -1,67 +1,157 @@
-use core::iter::Iterator;
-use core::slice::Iter;
-use std::any::Any;
+use std::any::{Any, TypeId};
+use std::{rc::Rc, collections::LinkedList};
 
-pub trait IsTuple {
-    fn get<T : Any>(&self, column: &String) -> Option<&T>;
+use super::extend::Extend;
+
+enum RelationError {
+    IncorrectColumnType { column : String, type_id : TypeId },
+    IncorrectColumnCount { expected : usize, actual : usize }
 }
 
-pub trait IndexInstance<Key> where Key : Eq {
-    type Iterator : Iterator<Item = u64>;
+type RelationResult<TResult> = Result<TResult, RelationError>;
 
-    // Get a slice of values ordered as implied by the index. This has the format
-    // from, to are inclusive meaning that from == to gets all the values deemed
-    // equal according to the index. Ommiting either returns all other elements.
-    // This implies that from(None, None) should return all indices.
-    fn slice(&self, from: Option<&Key>, to: Option<&Key>) -> Self::Iterator;
-}
+impl RelationError {
 
-pub struct IndexIterator<'a, Tuple> where Tuple : IsTuple {
-    items : &'a mut Iter<'a, RelationRow<Tuple>>
-}
+    pub fn raise_incorrect_column_count<T>(
+        expected : usize,
+        actual : usize
+    ) -> RelationResult<T> {
 
-impl<'a, Tuple> Iterator for IndexIterator<'a, Tuple>
-    where
-        Tuple : IsTuple {
+        Result::Err(Self::IncorrectColumnCount{ expected, actual })
+    }
 
-    type Item = &'a RelationRow<Tuple>;
+    pub fn raise_incorrect_column_type<T>(
+        column : String,
+    ) -> RelationResult<T>
+    where T : Any {
+        return Result::Err(RelationError::IncorrectColumnType { column, type_id: TypeId::of::<T>() })
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        return self.items.next();
+    pub fn incorrect_column_type<T>(
+        column : String,
+    ) -> RelationError
+    where T : Any {
+        return RelationError::IncorrectColumnType { column, type_id: TypeId::of::<T>() }
     }
 }
 
-pub trait Index<Key> where Key : Eq {
-    type Instance : IndexInstance<Key>;
-
-    fn create_index<Tuple>(items: &mut IndexIterator<Tuple>) -> Self::Instance
-        where Tuple : IsTuple;
+struct ToArgsIterator<TValue> {
+    arg : TValue
 }
 
-pub struct RelationRow<Tuple> {
-    pub row : u64,
-    pub tuple : Tuple
+impl<TValue> Iterator for ToArgsIterator<TValue> {
+    type Item = TValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        panic!("not implemented")
+    }
 }
 
-pub trait Relation<'t> {
-    type Tuple : IsTuple + 't;
-    type Iterator : Iterator<Item = &'t RelationRow<Self::Tuple>>;
+impl<TValue> FromIterator<TValue> for ToArgsIterator<TValue> {
 
-    fn tuples(&'t self) -> Self::Iterator;
+    fn from_iter<T: IntoIterator<Item = TValue>>(iter: T) -> Self {
+        panic!("not implemented")
+    }
 }
 
-pub trait IndexedRelation<'t, Key> where Key : Eq {
-    type Index : IndexInstance<Key>;
-    type Out : Relation<'static>;
-
-    fn slice(&self, from : Option<&Key>, to : Option<&Key>) -> Self::Out;
+pub trait ToArgs : Any + Clone {
+    
+    fn to_args(
+        columns : &Vec<String>,
+        args : &Vec<Box<dyn Any>>
+    ) -> Result<ToArgsIterator<Self>, RelationError>;
 }
 
-pub trait ToIndexed {
-    type Out<Key> : IndexedRelation<'static, Key> where Key : Eq;
+pub struct SelectIterator<Values> {
+    pub values : Vec<Values>
+}
 
-    fn indexed<I, Key>(&self, index: &I) -> Self::Out<Key>
-        where
-            I : Index<Key>
-            , Key : Eq;
+impl<TValue> FromIterator<TValue> for SelectIterator<TValue> {
+
+    fn from_iter<T: IntoIterator<Item = TValue>>(iter: T) -> Self {
+        panic!("not implemented")
+    }
+}
+
+pub trait SelectDispatchFn<Args, TResult> {
+
+    fn dispatch(
+        &self,
+        columns : &Vec<String>,
+        args: &Vec<Box<dyn Any>>
+    ) -> RelationResult<SelectIterator<TResult>>;
+}
+
+impl<A1> ToArgs for (A1,)
+    where A1 : Any + Clone {
+
+    fn to_args(
+        columns : &Vec<String>,
+        args : &Vec<Box<dyn Any>>) -> RelationResult<ToArgsIterator<(A1,)>> {
+
+        if args.len() != 1 {
+            return RelationError::raise_incorrect_column_count(1,columns.len())
+        }
+
+        return args[0].downcast::<ToArgsIterator<A1>>()
+            .map(|v| {
+                v.map(|v| { (v.clone(),) }).collect()
+            })
+            .or_else(|e| RelationError::raise_incorrect_column_type(columns[0]));
+    }
+}
+
+impl<A1,A2> ToArgs for (A1,A2)
+    where
+        A1 : Any + Clone
+        , A2 : Any + Clone {
+
+    fn to_args(
+        columns : &Vec<String>,
+        args : &Vec<Box<dyn Any>>
+    ) -> RelationResult<ToArgsIterator<(A1,A2)>> {
+
+        if args.len() != 2 {
+            return RelationError::raise_incorrect_column_count(2, columns.len())
+        }
+
+        let arg1 = args[0]
+            .downcast::<ToArgsIterator<A1>>()
+            .map_err(|e| { RelationError::incorrect_column_type::<Box<A1>>(columns[0]) });
+        
+        let arg2 =
+            args[1].downcast::<ToArgsIterator<A2>>()
+            .map_err(|b| { RelationError::incorrect_column_type::<Box<A2>>(columns[1])});
+
+        return arg1.and_then(|a1| { 
+            arg2.map(|a2|{
+                a1.zip(a2).collect()
+            })
+        });
+    }
+}
+
+impl<F, Args, TResult> SelectDispatchFn<Args, TResult> for F
+    where
+        F : FnMut(&Args) -> TResult
+        , Args : ToArgs {
+    
+    fn dispatch(
+        &self,
+        columns: &Vec<String>,
+        args: &Vec<Box<dyn Any>>
+    ) -> RelationResult<SelectIterator<TResult>> {
+        
+        let res = ToArgs::to_args(columns, args).map(|args: Box<Args>|{ self(args.as_ref())});
+        
+    }
+}
+
+pub trait Relation {
+    fn select<F, Args, TResult>(
+        &self,
+        columns : &Vec<String>,
+        select : F
+    ) -> SelectIterator<TResult>
+    where F : SelectDispatchFn<Args, TResult>;
 }
