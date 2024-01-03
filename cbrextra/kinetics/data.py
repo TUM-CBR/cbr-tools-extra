@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Any, Dict, List
+from typing import Dict, List
 
 class ModelSpec(BaseModel):
     model_name : str
@@ -7,7 +7,7 @@ class ModelSpec(BaseModel):
 
 class EvalArgs(BaseModel):
     model : ModelSpec
-    data : List[Any]
+    data : List[float]
 
 class Point2d(BaseModel):
     x: float

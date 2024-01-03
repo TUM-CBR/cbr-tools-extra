@@ -1,4 +1,6 @@
 from keras.layers import Layer
+import tensorflow as tf
+from typing import Any
 
 from .data import *
 from .models import PartialInhibitionModel
@@ -21,14 +23,15 @@ def select_eval_model(args: EvalArgs) -> Layer:
 def eval_model(args: EvalArgs) -> EvalResult:
 
     model = select_eval_model(args)
-    return model(args.data)
+    values = tf.convert_to_tensor(args.data)
+    result : Any = model(values)
     
     return EvalResult(
         results = [
             Point2d(
-                x = value,
-                y = model([value])
+                x = input,
+                y = float(result)
             )
-            for value in args.data
+            for (input, result) in zip(values, result)
         ]
     )

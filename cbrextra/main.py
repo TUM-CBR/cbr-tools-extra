@@ -41,6 +41,9 @@ def main():
         result = primers.main(context)
     elif command == 'cascades':
         result = cascade.main(context)
+    elif command == "kinetics":
+        from cbrextra.kinetics.main import module as kinetics
+        result = kinetics.main(context)
 
     if result is None or not result.is_success:
         print(docopt(__doc__), file=stderr)
