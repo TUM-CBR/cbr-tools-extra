@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Dict, List
+from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
 
 class ModelSpec(BaseModel):
     model_name : str
@@ -15,3 +15,9 @@ class Point2d(BaseModel):
 
 class EvalResult(BaseModel):
     results: List[Point2d]
+
+class InteractiveInput(BaseModel):
+    eval_model : Optional[EvalArgs] = Field(default=None)
+
+class InteractiveOutput(BaseModel):
+    eval_result : Optional[EvalResult] = Field(default=None)

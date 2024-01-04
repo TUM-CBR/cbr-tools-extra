@@ -1,30 +1,48 @@
 from abc import ABC, abstractmethod
-from typing import Generic, NamedTuple, TypeVar
+from typing import Generic, List, NamedTuple, Optional, TypeVar
 
 TMessageIn = TypeVar('TMessageIn')
 TMessageOut = TypeVar('TMessageOut')
 
-class MessageContetBase(ABC, Generic[TMessageIn, TMessageOut]):
+class InputHeader(NamedTuple):
+    uid : int
+
+class MessageContextBase(ABC, Generic[TMessageIn, TMessageOut]):
     pass
 
 class ParseMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
-    pass
+    payload : dict
 
 class SerializeMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
-    pass
+    value : TMessageOut
 
-class OnMessageContextBase(MessageContetBase[TMessageIn, TMessageOut]):
+class OnMessageContextBase(MessageContextBase[TMessageIn, TMessageOut]):
 
     @abstractmethod
     def send(
         self,
-        message: TMessageOut
+        message: TMessageOut,
+        message_ids : List[int]
     ) -> None:
         raise NotImplementedError()
 
 class OnMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
     context: OnMessageContextBase[TMessageIn, TMessageOut]
+    header: InputHeader 
     message: TMessageIn
+
+    def send(
+        self,
+        message : TMessageOut,
+        message_ids : Optional[List[int]] = None
+    ):
+        message_ids = \
+            [self.header.uid] if message_ids is None \
+            else message_ids
+        self.context.send(
+            message,
+            message_ids
+        )
 
 class InteractiveSpec(ABC, Generic[TMessageIn, TMessageOut]):
 
@@ -42,8 +60,9 @@ class InteractiveSpec(ABC, Generic[TMessageIn, TMessageOut]):
     ) -> dict:
         raise NotImplementedError()
 
+    @abstractmethod
     def on_message(
         self,
         args: 'OnMessageArgs[TMessageIn, TMessageOut]'
-    ):
+    ) -> None:
         raise NotImplementedError()

@@ -1,11 +1,15 @@
 import json
 from pydantic import ValidationError
+import sys
 from typing import TextIO
 
+from ..atomic import AtomicCounter
 from .data import *
 from .shared import *
 
 class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
+
+    MESSAGE_ID_COUNTER = AtomicCounter()
 
     class OnMessageContext(OnMessageContextBase):
 
@@ -18,9 +22,10 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
 
         def send(
             self,
-            message: TMessageOut
+            message: TMessageOut,
+            message_ids : List[int]
         ) -> None:
-            pass
+            self.__handler.__write_message__(message, message_ids)
 
     def __init__(
         self,
@@ -33,18 +38,50 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
         self.__output_stream = output_stream
         self.__on_message_context = self.OnMessageContext(self)
 
-    def __handle_input(
+    def __write_message__(
         self,
-        input: InteractiveInput
+        message: TMessageOut,
+        message_ids : List[int]
     ):
+        json_value = self.__spec.serialize_message(
+            SerializeMessageArgs(message)
+        )
+
+        output = InteractiveOutput(
+            uid = self.MESSAGE_ID_COUNTER.increment(),
+            value = InteractiveValue(
+                input_uids = message_ids,
+                payload = json_value
+            ),
+            error = None
+        )
+        self.__write_output(output)
+
+    def __write_output(self, output: InteractiveOutput):
+        self.__output_stream.write(
+            output.model_dump_json()
+        )
+        self.__output_stream.write("\n")
+
+    def __handle_message_input(
+        self,
+        input: InteractiveInput,
+        payload : dict
+    ):
+
         try:
             message = self.__spec.parse_message(
-                ParseMessageArgs()
+                ParseMessageArgs(
+                    payload=payload
+                )
             )
             self.__spec.on_message(
                 OnMessageArgs(
                     context=self.__on_message_context,
-                    message=message
+                    message=message,
+                    header=InputHeader(
+                        uid=input.uid
+                    )
                 )
             )
         except Exception as exn:
@@ -54,6 +91,34 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
                 uids = [input.uid]
             )
 
+    def __handle_input(
+        self,
+        input: InteractiveInput
+    ) -> bool:
+
+        if input.entity_type == EntityType.STOP.value:
+            return False
+        elif input.entity_type == EntityType.MESSAGE.value:
+            if input.payload is None:
+                self.__write_error(
+                    ErrorCodes.UnknownInputType,
+                    ValueError("Payload cannot be None"),
+                    uids=[input.uid]
+                )
+            else:
+                self.__handle_message_input(
+                    input,
+                    input.payload
+                )
+        else:
+            self.__write_error(
+                ErrorCodes.UnknownInputType,
+                ValueError("Unknown message input type"),
+                uids=[input.uid]
+            )
+
+        return True
+
     def __write_error(
         self,
         error_code: ErrorCodes,
@@ -61,15 +126,31 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
         payload: Optional[str] = None,
         uids: Optional[List[int]] = None 
     ):
-        raise NotImplementedError()
+        output = InteractiveOutput(
+            uid = self.MESSAGE_ID_COUNTER.increment(),
+            error = InteractiveError(
+                command_uids = uids or [],
+                error_code = error_code,
+                payload = payload,
+                message = str(exn)
+            ),
+            value = None
+        )
+
+        self.__write_output(output)
 
     def run(self):
         while(True):
             payload = self.__input_stream.readline()
+
+            if len(payload) == 0:
+                return
             try:
                 json_value = json.loads(payload)
                 value = InteractiveInput(**json_value)
-                self.__handle_input(value)
+                
+                if not self.__handle_input(value):
+                    return
             except json.JSONDecodeError as exn:
                 self.__write_error(
                     ErrorCodes.JsonDecodeError,
@@ -83,3 +164,9 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
                     payload,
                 )
             
+def run_interactive(
+    spec: InteractiveSpec,
+    input_stream : TextIO = sys.stdin,
+    output_stream : TextIO = sys.stdout
+):
+    InteractiveHandler(spec, input_stream, output_stream).run()
