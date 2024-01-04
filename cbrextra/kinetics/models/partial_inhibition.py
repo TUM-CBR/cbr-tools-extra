@@ -1,12 +1,14 @@
 import keras
 
+from ..data import ModelSpec
+
 def constant_init(value: float):
     return {
         "class_name": "Constant",
         "config": {"value": value}
     }
 
-class PartialInhibitionModel(keras.layers.Layer):
+class PartialInhibitionModel(keras.Model):
 
     MODEL_NAME = "partial_inhibition"
 
@@ -62,3 +64,14 @@ class PartialInhibitionModel(keras.layers.Layer):
         den = self.km + (1 + inputs / self.ksi) * inputs
 
         return num / den
+
+    def to_model_spec(self) -> ModelSpec:
+        return ModelSpec(
+            model_name=self.MODEL_NAME,
+            model_parameters={
+                "ksi": float(self.ksi),
+                "km": float(self.km),
+                "vmax": float(self.vmax),
+                "beta": float(self.beta)
+            }
+        )

@@ -18,7 +18,7 @@ class ErrorCodes(Enum):
     UnknownInputType = 3
 
 class InteractiveError(BaseModel):
-    command_uids: List[int]
+    input_uids: List[int]
     error_code: ErrorCodes
     payload: Optional[str] = Field(default=None)
     message: str

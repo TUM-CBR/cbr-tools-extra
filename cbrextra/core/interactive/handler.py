@@ -129,7 +129,7 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
         output = InteractiveOutput(
             uid = self.MESSAGE_ID_COUNTER.increment(),
             error = InteractiveError(
-                command_uids = uids or [],
+                input_uids = uids or [],
                 error_code = error_code,
                 payload = payload,
                 message = str(exn)
