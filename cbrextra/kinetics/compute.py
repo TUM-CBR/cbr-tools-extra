@@ -54,7 +54,7 @@ def fit_model(args: FitArgs) -> FitResult:
         point.y
         for point in args.data
     ])
-    model.fit(x_train, y_train, epochs=5000)
+    model.fit(x_train, y_train, epochs=1000)
 
     return FitResult(
         model = model.to_model_spec(),
