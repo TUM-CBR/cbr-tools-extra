@@ -59,9 +59,9 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
 
     def __write_output(self, output: InteractiveOutput):
         self.__output_stream.write(
-            output.model_dump_json()
+            f"{output.model_dump_json()}\n"
         )
-        self.__output_stream.write("\n")
+        self.__output_stream.flush()
 
     def __handle_message_input(
         self,
