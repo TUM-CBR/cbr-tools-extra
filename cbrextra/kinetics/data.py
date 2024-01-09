@@ -24,9 +24,22 @@ class FitResult(BaseModel):
 class EvalResult(BaseModel):
     results: List[Point2d]
 
+class SimulationSpec(BaseModel):
+    interval : int
+    periods : int
+
+class SimulateArgs(BaseModel):
+    model : ModelSpec
+    simulation_spec: SimulationSpec
+    initial_concentrations : List[float]
+
+class SimulateResult(BaseModel):
+    results: Dict[float, List[float]]
+
 class InteractiveInput(BaseModel):
     eval_model : Optional[EvalArgs] = Field(default=None)
     fit_model : Optional[FitArgs] = Field(default=None)
+    simulate_model : Optional[SimulateArgs] = Field(default=None)
 
 class InteractiveOutput(BaseModel):
     eval_result : Optional[EvalResult] = Field(default=None)

@@ -1,30 +1,13 @@
-from keras.layers import Layer
 from keras.losses import MeanSquaredError
 import tensorflow as tf
 from typing import Any
 
 from .data import *
-from .models import PartialInhibitionModel
-
-def select_model(model: ModelSpec) -> Layer:
-    name = model.model_name
-    parameters = model.model_parameters
-    if name == PartialInhibitionModel.MODEL_NAME:
-        return PartialInhibitionModel(
-            ksi = parameters["ksi"],
-            km = parameters["km"],
-            vmax = parameters["vmax"],
-            beta = parameters["beta"]
-        )
-
-    raise ValueError(f"Unknown model name '{name}'")
-
-def select_eval_model(args: EvalArgs) -> Layer:
-    return select_model(args.model)
+from .models.factory import select_eval_model, select_simulation_model
 
 def eval_model(args: EvalArgs) -> EvalResult:
 
-    model = select_eval_model(args)
+    model = select_eval_model(args.model)
     values = tf.convert_to_tensor(args.data)
     result : Any = model(values)
     
@@ -39,7 +22,7 @@ def eval_model(args: EvalArgs) -> EvalResult:
     )
 
 def fit_model(args: FitArgs) -> FitResult:
-    model = select_model(args.model)
+    model = select_eval_model(args.model)
     loss = MeanSquaredError()
     model.compile(
         optimizer='adam',
@@ -61,5 +44,14 @@ def fit_model(args: FitArgs) -> FitResult:
         original = args.model
     )
 
+def simulate_model(args: SimulateArgs) -> SimulateResult:
+    model = select_simulation_model(args.model, args.simulation_spec)
+    input = tf.convert_to_tensor(args.initial_concentrations)
+    result = model(input)
 
-
+    return SimulateResult(
+        results = dict(
+            (conc, list(result))
+            for conc, values in zip(args.initial_concentrations, args.initial_concentrations)
+        )
+    )

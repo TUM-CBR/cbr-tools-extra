@@ -1,6 +1,7 @@
+import tensorflow as tf
 import keras
 
-from ..data import ModelSpec
+from ..data import ModelSpec, SimulationSpec
 
 def constant_init(value: float):
     return {
@@ -8,9 +9,7 @@ def constant_init(value: float):
         "config": {"value": value}
     }
 
-class PartialInhibitionModel(keras.Model):
-
-    MODEL_NAME = "partial_inhibition"
+class PartialInhibitionLayer(keras.layers.Layer):
 
     def __init__(
         self,
@@ -65,9 +64,9 @@ class PartialInhibitionModel(keras.Model):
 
         return num / den
 
-    def to_model_spec(self) -> ModelSpec:
+    def to_model_spec(self, name: str) -> ModelSpec:
         return ModelSpec(
-            model_name=self.MODEL_NAME,
+            model_name=name,
             model_parameters={
                 "ksi": float(self.ksi),
                 "km": float(self.km),
@@ -75,3 +74,54 @@ class PartialInhibitionModel(keras.Model):
                 "beta": float(self.beta)
             }
         )
+
+class PartialInhibitionModel(keras.Model):
+
+    MODEL_NAME = "partial_inhibition"
+
+    def __init__(
+        self,
+        ksi : float,
+        km : float,
+        vmax : float,
+        beta : float
+    ):
+        super().__init__()
+        self.__velocity_layer = PartialInhibitionLayer(ksi, km, vmax, beta)
+
+    def call(self, inputs, training=None, mask=None):
+        return self.__velocity_layer(inputs)
+
+    def to_model_spec(self) -> ModelSpec:
+        return self.__velocity_layer.to_model_spec(self.MODEL_NAME)
+
+class PartialInhibitionSimulationModel(keras.Model):
+
+    MODEL_NAME = "partial_inhibition"
+
+    def __init__(
+        self,
+        ksi : float,
+        km : float,
+        vmax : float,
+        beta : float,
+        simulation_spec: SimulationSpec
+    ):
+        super().__init__()
+        self.__velocity_layer = PartialInhibitionLayer(ksi, km, vmax, beta)
+        self.__simulation_spec = simulation_spec
+
+    def call(self, inputs, training=None, mask=None):
+
+        reps_per_unit = 10
+        interval = self.__simulation_spec.interval
+        periods = self.__simulation_spec.periods
+        differential = tf.constant(1/(reps_per_unit * interval))
+        result = []
+
+        for i in range(0, periods):
+            for j in range(0, reps_per_unit*interval):
+                inputs -= differential * self.__velocity_layer(inputs)
+            result.append(inputs)
+
+        return tf.transpose(tf.convert_to_tensor(result))
