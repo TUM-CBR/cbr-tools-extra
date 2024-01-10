@@ -27,3 +27,5 @@ def select_simulation_model(model: ModelSpec, args: SimulationSpec):
             beta = parameters["beta"],
             simulation_spec = args
         )
+
+    raise ValueError(f"Unknown model name '{name}'")

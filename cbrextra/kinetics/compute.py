@@ -51,7 +51,7 @@ def simulate_model(args: SimulateArgs) -> SimulateResult:
 
     return SimulateResult(
         results = dict(
-            (conc, list(result))
-            for conc, values in zip(args.initial_concentrations, args.initial_concentrations)
+            (conc, list(map(float, values)))
+            for conc, values in zip(args.initial_concentrations, result)
         )
     )
