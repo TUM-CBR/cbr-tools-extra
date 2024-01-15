@@ -2,7 +2,7 @@ from Bio.Data import IUPACData
 import json
 from os import path
 import re
-from typing import List, NamedTuple, Self, TextIO
+from typing import List, NamedTuple, TextIO
 
 from . import sequences
 
@@ -28,7 +28,7 @@ class Mutation(NamedTuple):
     original : str
 
     @property
-    def mutation_str(self : Self) -> str:
+    def mutation_str(self) -> str:
         return "%s%i%s" % (self.original, self.position, self.mutation)
 
     @staticmethod

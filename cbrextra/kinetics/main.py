@@ -11,7 +11,7 @@ from typing import Any, Dict, TextIO
 
 from ..core.module import Context, Module, Result
 from ..core.interactive import *
-from .compute import eval_model, fit_model, simulate_model
+from .compute import eval_model, fit_model, fit_by_simulation, simulate_model
 from .data import *
 
 class EnzymeKineticsInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput]):
@@ -35,6 +35,20 @@ class EnzymeKineticsInteractive(InteractiveSpec[InteractiveInput, InteractiveOut
             )
         elif message.fit_model is not None:
             result = fit_model(message.fit_model)
+            args.send(
+                InteractiveOutput(
+                    fit_result = result
+                )
+            )
+        elif message.simulate_model is not None:
+            result = simulate_model(message.simulate_model)
+            args.send(
+                InteractiveOutput(
+                    simulate_result = result
+                )
+            )
+        elif message.fit_simulation is not None:
+            result = fit_by_simulation(message.fit_simulation)
             args.send(
                 InteractiveOutput(
                     fit_result = result

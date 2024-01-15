@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 from enum import Enum
-from typing import Dict, NamedTuple, Self
+from typing import Dict, NamedTuple
 
 class Context(NamedTuple):
     cmdargs : dict
@@ -14,15 +14,15 @@ class Result(NamedTuple):
     status :  ResultStatus
 
     @property
-    def is_not_requested(self : Self) -> bool:
+    def is_not_requested(self) -> bool:
         return self.status == ResultStatus.NOT_REQUESTED
 
     @property
-    def is_success(self : Self) -> bool:
+    def is_success(self) -> bool:
         return self.status == ResultStatus.SUCCESS
 
     @property
-    def is_requested(self : Self) -> bool:
+    def is_requested(self) -> bool:
         return self.is_success
 
     @staticmethod
@@ -40,14 +40,14 @@ class Result(NamedTuple):
 class Module(ABC):
 
     @property
-    def success(self : Self) -> Result:
+    def success(self) -> Result:
         return Result.success()
 
     @property
-    def not_requested(self : Self) -> Result:
+    def not_requested(self) -> Result:
         return Result.not_requested()
 
-    def invalid_arguments(self : Self, missing: Dict[str, str]) -> Result:
+    def invalid_arguments(self, missing: Dict[str, str]) -> Result:
         return Result.invalid_arguments(missing)
 
     @abstractmethod
@@ -56,9 +56,9 @@ class Module(ABC):
 
 class Operation(ABC):
 
-    def __init__(self : Self, context : Context):
+    def __init__(self, context : Context):
         self.__context = context
 
     @property
-    def context(self : Self) -> Context:
+    def context(self) -> Context:
         return self.__context

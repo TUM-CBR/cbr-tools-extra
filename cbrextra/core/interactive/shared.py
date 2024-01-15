@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Generic, List, NamedTuple, Optional, TypeVar
+from typing import Any, Generic, List, NamedTuple, Optional, TypeVar, TYPE_CHECKING
 
 TMessageIn = TypeVar('TMessageIn')
 TMessageOut = TypeVar('TMessageOut')
@@ -10,11 +10,19 @@ class InputHeader(NamedTuple):
 class MessageContextBase(ABC, Generic[TMessageIn, TMessageOut]):
     pass
 
-class ParseMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
-    payload : dict
+if TYPE_CHECKING:
+    class ParseMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
+        payload : dict
+else:
+    class ParseMessageArgs(NamedTuple):
+        payload : dict
 
-class SerializeMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
-    value : TMessageOut
+if TYPE_CHECKING:
+    class SerializeMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
+        value : TMessageOut
+else:
+    class SerializeMessageArgs(NamedTuple):
+        value : Any
 
 class OnMessageContextBase(MessageContextBase[TMessageIn, TMessageOut]):
 
@@ -26,23 +34,42 @@ class OnMessageContextBase(MessageContextBase[TMessageIn, TMessageOut]):
     ) -> None:
         raise NotImplementedError()
 
-class OnMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
-    context: OnMessageContextBase[TMessageIn, TMessageOut]
-    header: InputHeader 
-    message: TMessageIn
+if TYPE_CHECKING:
+    class OnMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
+        context: OnMessageContextBase[TMessageIn, TMessageOut]
+        header: InputHeader 
+        message: TMessageIn
 
-    def send(
-        self,
-        message : TMessageOut,
-        message_ids : Optional[List[int]] = None
-    ):
-        message_ids = \
-            [self.header.uid] if message_ids is None \
-            else message_ids
-        self.context.send(
-            message,
-            message_ids
-        )
+        def send(
+            self,
+            message : TMessageOut,
+            message_ids : Optional[List[int]] = None
+        ):
+            message_ids = \
+                [self.header.uid] if message_ids is None \
+                else message_ids
+            self.context.send(
+                message,
+                message_ids
+            )
+else:
+    class OnMessageArgs(NamedTuple):
+        context: OnMessageContextBase[TMessageIn, TMessageOut]
+        header: Any 
+        message: Any
+
+        def send(
+            self,
+            message : TMessageOut,
+            message_ids : Optional[List[int]] = None
+        ):
+            message_ids = \
+                [self.header.uid] if message_ids is None \
+                else message_ids
+            self.context.send(
+                message,
+                message_ids
+            )
 
 class InteractiveSpec(ABC, Generic[TMessageIn, TMessageOut]):
 

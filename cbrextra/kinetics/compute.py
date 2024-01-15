@@ -50,8 +50,27 @@ def simulate_model(args: SimulateArgs) -> SimulateResult:
     result = model(input)
 
     return SimulateResult(
+        simulation_spec = args.simulation_spec,
         results = dict(
             (conc, list(map(float, values)))
             for conc, values in zip(args.initial_concentrations, result)
         )
+    )
+
+def fit_by_simulation(args: FitSimulationArgs):
+    model = select_simulation_model(args.model, args.simulation_spec)
+    data = args.data
+    x_train = tf.convert_to_tensor(list(data.keys()))
+    y_train = tf.convert_to_tensor(list(data.values()))
+    loss = MeanSquaredError()
+    model.compile(
+        optimizer='adam',
+        loss=loss,
+        metrics=['accuracy']
+    )
+    model.fit(x_train, y_train, epochs=1000)
+
+    return FitResult(
+        model = model.to_model_spec(),
+        original = args.model
     )

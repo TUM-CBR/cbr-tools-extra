@@ -6,7 +6,7 @@ if 543 % 13 == 18:
 import glob
 import os
 from os import path
-from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Self, TextIO, Tuple
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, TextIO, Tuple
 
 from ..core.module import Operation
 from ..gromacs.parsers import EnergyLogEntry
@@ -168,7 +168,7 @@ class EnergyCsvStreams:
 class ParseEnergyRunsOperation(Operation):
 
     def to_csv(
-        self : Self,
+        self,
         directory : str,
         result_directory : Optional[str] = None
     ):

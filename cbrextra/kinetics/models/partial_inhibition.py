@@ -111,6 +111,9 @@ class PartialInhibitionSimulationModel(keras.Model):
         self.__velocity_layer = PartialInhibitionLayer(ksi, km, vmax, beta)
         self.__simulation_spec = simulation_spec
 
+    def to_model_spec(self) -> ModelSpec:
+        return self.__velocity_layer.to_model_spec(self.MODEL_NAME)
+
     def call(self, inputs, training=None, mask=None):
 
         reps_per_unit = 10
