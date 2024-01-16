@@ -16,6 +16,7 @@ class Point2d(BaseModel):
 class FitArgs(BaseModel):
     model : ModelSpec
     data : List[Point2d]
+    iterations : int
 
 class FitResult(BaseModel):
     model : ModelSpec
@@ -27,6 +28,7 @@ class EvalResult(BaseModel):
 class SimulationSpec(BaseModel):
     interval : int
     periods : int
+    reps_per_unit : int
 
 class SimulateArgs(BaseModel):
     model : ModelSpec
@@ -37,6 +39,7 @@ class FitSimulationArgs(BaseModel):
     model: ModelSpec
     simulation_spec: SimulationSpec
     data: Dict[float, List[float]]
+    iterations : int
 
 class SimulateResult(BaseModel):
     simulation_spec: SimulationSpec

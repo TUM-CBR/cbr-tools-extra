@@ -37,7 +37,7 @@ def fit_model(args: FitArgs) -> FitResult:
         point.y
         for point in args.data
     ])
-    model.fit(x_train, y_train, epochs=5000)
+    model.fit(x_train, y_train, epochs=args.iterations)
 
     return FitResult(
         model = model.to_model_spec(),
@@ -68,7 +68,11 @@ def fit_by_simulation(args: FitSimulationArgs):
         loss=loss,
         metrics=['accuracy']
     )
-    model.fit(x_train, y_train, epochs=1000)
+
+    with tf.GradientTape() as tape:
+        check = model(x_train, training=True)
+        gs = tape.gradient(check, model.variables)
+    model.fit(x_train, y_train, epochs=args.iterations)
 
     return FitResult(
         model = model.to_model_spec(),

@@ -101,6 +101,20 @@ class EnzymeKinetics(Module):
             result.model_dump_json()
         ])
         return Result.success()
+    
+    def fit_by_simulation_model(
+        self,
+        options: Dict[str, Any],
+        input_stream: TextIO = sys.stdin,
+        output_stream: TextIO = sys.stdout
+    ):
+        input_args = json.load(input_stream)
+        args = FitSimulationArgs(**input_args)
+        result = fit_by_simulation(args)
+        output_stream.writelines([
+            result.model_dump_json()
+        ])
+        return Result.success()
 
     def interactive_mode(
         self,
