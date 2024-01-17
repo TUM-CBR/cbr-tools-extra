@@ -4,6 +4,7 @@ from typing import Any
 
 from .data import *
 from .models.factory import select_eval_model, select_simulation_model
+from .models.partial_inhibition import with_range_loss
 
 def eval_model(args: EvalArgs) -> EvalResult:
 
@@ -24,6 +25,12 @@ def eval_model(args: EvalArgs) -> EvalResult:
 def fit_model(args: FitArgs) -> FitResult:
     model = select_eval_model(args.model)
     loss = MeanSquaredError()
+
+    fit_range = args.fit_range
+
+    if fit_range is not None:
+        with_range_loss(model, fit_range)
+
     model.compile(
         optimizer='adam',
         loss=loss,
@@ -59,6 +66,11 @@ def simulate_model(args: SimulateArgs) -> SimulateResult:
 
 def fit_by_simulation(args: FitSimulationArgs):
     model = select_simulation_model(args.model, args.simulation_spec)
+
+    fit_range = args.fit_range
+    if fit_range is not None:
+        with_range_loss(model, fit_range)
+
     data = args.data
     x_train = tf.convert_to_tensor(list(data.keys()))
     y_train = tf.convert_to_tensor(list(data.values()))
@@ -69,9 +81,6 @@ def fit_by_simulation(args: FitSimulationArgs):
         metrics=['accuracy']
     )
 
-    with tf.GradientTape() as tape:
-        check = model(x_train, training=True)
-        gs = tape.gradient(check, model.variables)
     model.fit(x_train, y_train, epochs=args.iterations)
 
     return FitResult(

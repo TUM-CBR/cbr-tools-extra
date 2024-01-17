@@ -1,9 +1,8 @@
-from numpy import float32
 import tensorflow as tf
 import keras
-from typing import Any
+from typing import Any, Union
 
-from ..data import ModelSpec, SimulationSpec
+from ..data import ModelSpec, PartialInhibitionParameters, PartialInhibitionRange, SimulationSpec
 
 def constant_init(value: float):
     return {
@@ -69,12 +68,12 @@ class PartialInhibitionLayer(keras.layers.Layer):
     def to_model_spec(self, name: str) -> ModelSpec:
         return ModelSpec(
             model_name = name,
-            model_parameters = {
-                "ksi": float(self.ksi),
-                "km": float(self.km),
-                "vmax": float(self.vmax),
-                "beta": float(self.beta)
-            }
+            model_parameters = PartialInhibitionParameters(
+                ksi = float(self.ksi),
+                km = float(self.km),
+                vmax = float(self.vmax),
+                beta = float(self.beta)
+            )
         )
 
 class PartialInhibitionModel(keras.Model):
@@ -125,22 +124,127 @@ class PartialInhibitionSimulationModel(keras.Model):
 
         reps_per_unit = self.__simulation_spec.reps_per_unit
         interval = self.__simulation_spec.interval
+        self.reps_per_period = tf.constant(reps_per_unit * interval, dtype=tf.int32, shape=())
+        
         self.differential = tf.constant(1/(reps_per_unit * interval), dtype=tf.float32)
-        self.reps_per_period = tf.constant(reps_per_unit * interval, dtype=tf.int32)
         self.initial_conc = tf.constant(0, dtype=tf.float32, shape=input_shape)
 
-    def call(self, inputs : Any, training : Any = None, mask : Any = None):
-        result = tf.TensorArray(tf.float32, size=self.periods, clear_after_read=False, dynamic_size=False)
-        product_concentrations = self.initial_conc
-        substrate_concentrations = inputs
+    @tf.function
+    def simulation_step(
+            self,
+            p: Any,
+            product_concentrations: Any,
+            substrate_concentrations: Any,
+            result: Any
+        ) -> Any:
 
-        for p in tf.range(0, self.periods):
+        (p, _1, p_conc, s_conc, _2, result) = tf.while_loop(
+            lambda p, step, p_conc, s_conc, rate, result: tf.less(step, self.reps_per_period),
+            lambda p, step, p_conc, s_conc, rate, result: (
+                p,
+                step +1,
+                p_conc + rate,
+                s_conc - rate,
+                self.differential * self.velocity_layer(s_conc - rate), result
+            ),
+            (
+                p,
+                tf.constant(0, dtype=tf.int32, shape=()),
+                product_concentrations,
+                substrate_concentrations,
+                self.differential * self.velocity_layer(substrate_concentrations),
+                result
+            ),
+            parallel_iterations=1
+        )
 
-            for _ in tf.range(0, self.reps_per_period):
-                rate = self.differential * self.velocity_layer(substrate_concentrations)
-                substrate_concentrations -= rate
-                product_concentrations += rate
+        return (p + 1, p_conc, s_conc, result.write(p, p_conc))
 
-            result = result.write(p, product_concentrations)
-
+    @tf.function
+    def call(self, inputs : Any, training : Any = None, mask : Any = None) -> Any:
+        (_1,_2,_3,result) = tf.while_loop(
+            lambda p,p_conc,s_conc,result: tf.less(p, self.periods),
+            self.simulation_step,
+            (
+                tf.constant(0, dtype=tf.int32, shape=()),
+                self.initial_conc,
+                inputs,
+                tf.TensorArray(tf.float32, size=self.periods, clear_after_read=False, dynamic_size=False)
+            ),
+            parallel_iterations=1
+        )
         return tf.transpose(result.stack())
+
+
+no_penalty = tf.constant(0, dtype=tf.float32, shape=())
+loss_distortion = tf.constant(100, dtype=tf.float32, shape=())
+
+def min_value_loss(
+    min_value_py: float
+):
+    min_value = tf.constant(min_value_py, dtype=tf.float32, shape=())
+
+    def loss_fn(variable: Any) -> Any:
+        return tf.cond(
+            pred = tf.greater_equal(variable, min_value),
+            true_fn = tf.function(lambda: no_penalty),
+            false_fn = tf.function(lambda: tf.exp(tf.multiply(loss_distortion, tf.abs(min_value - variable))))
+        )
+    
+    return tf.function(loss_fn)
+
+def max_value_loss(
+    max_value_py: float
+):
+    max_value = tf.constant(max_value_py, dtype=tf.float32, shape=())
+
+    def loss_fn(variable: Any) -> Any:
+        return tf.cond(
+            pred = tf.less_equal(variable, max_value),
+            true_fn = tf.function(lambda: no_penalty),
+            false_fn = tf.function(lambda: tf.exp(tf.multiply(loss_distortion, tf.abs(variable - max_value))))
+        )
+    
+    return tf.function(loss_fn)
+
+def with_range_loss(
+    model: Union[PartialInhibitionModel, PartialInhibitionSimulationModel],
+    ranges: PartialInhibitionRange
+):
+    velocity_layer = model.velocity_layer
+
+    min_ksi, max_ksi = ranges.ksi
+    if min_ksi is not None:
+        loss_fn = min_value_loss(min_ksi)
+        model.add_loss(tf.function(lambda: loss_fn(velocity_layer.ksi)))
+
+    if max_ksi is not None:
+        loss_fn = max_value_loss(max_ksi)
+        model.add_loss(tf.function(lambda: loss_fn(velocity_layer.ksi)))
+
+    min_km, max_km = ranges.km
+    if min_km is not None:
+        loss_fn = min_value_loss(min_km)
+        model.add_loss(lambda: loss_fn(velocity_layer.km))
+
+    if max_km is not None:
+        loss_fn = max_value_loss(max_km)
+        model.add_loss(lambda: loss_fn(velocity_layer.km))
+
+    min_vmax, max_vmax = ranges.vmax
+    if min_vmax is not None:
+        loss_fn = min_value_loss(min_vmax)
+        model.add_loss(lambda: loss_fn(velocity_layer.vmax))
+
+    if max_vmax is not None:
+        loss_fn = max_value_loss(max_vmax)
+        model.add_loss(lambda: loss_fn(velocity_layer.vmax))
+
+    min_beta, max_beta = ranges.beta
+    if min_beta is not None:
+        loss_fn = min_value_loss(min_beta)
+        model.add_loss(lambda: loss_fn(velocity_layer.beta))
+
+    if max_beta is not None:
+        loss_fn = max_value_loss(max_beta)
+        model.add_loss(lambda: loss_fn(velocity_layer.beta))

@@ -1,9 +1,25 @@
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+
+class PartialInhibitionParameters(BaseModel):
+    ksi: float
+    km: float
+    vmax: float
+    beta: float
+
+class PartialInhibitionRange(BaseModel):
+    """Describes the range of values that can be assigned to
+    the PartialInhibitionParameters. This gets interpreted as tensorflow
+    regularizers that introduce a loss if the range is out of scope."""
+
+    ksi: Tuple[Optional[float], Optional[float]] = (None, None)
+    km: Tuple[Optional[float], Optional[float]] = (None, None)
+    vmax: Tuple[Optional[float], Optional[float]] = (None, None)
+    beta: Tuple[Optional[float], Optional[float]] = (None, None)
 
 class ModelSpec(BaseModel):
     model_name : str
-    model_parameters : Dict[str, float]
+    model_parameters : PartialInhibitionParameters
 
 class EvalArgs(BaseModel):
     model : ModelSpec
@@ -17,6 +33,7 @@ class FitArgs(BaseModel):
     model : ModelSpec
     data : List[Point2d]
     iterations : int
+    fit_range: Optional[PartialInhibitionRange] = None
 
 class FitResult(BaseModel):
     model : ModelSpec
@@ -40,6 +57,7 @@ class FitSimulationArgs(BaseModel):
     simulation_spec: SimulationSpec
     data: Dict[float, List[float]]
     iterations : int
+    fit_range: Optional[PartialInhibitionRange] = None
 
 class SimulateResult(BaseModel):
     simulation_spec: SimulationSpec
