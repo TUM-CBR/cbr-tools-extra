@@ -4,7 +4,6 @@ from typing import Any
 
 from .data import *
 from .models.factory import select_eval_model, select_simulation_model
-from .models.partial_inhibition import with_range_loss
 
 def eval_model(args: EvalArgs) -> EvalResult:
 
@@ -29,7 +28,7 @@ def fit_model(args: FitArgs) -> FitResult:
     fit_range = args.fit_range
 
     if fit_range is not None:
-        with_range_loss(model, fit_range)
+        model.velocity_layer.with_range_loss(fit_range)
 
     model.compile(
         optimizer='adam',
@@ -69,7 +68,7 @@ def fit_by_simulation(args: FitSimulationArgs):
 
     fit_range = args.fit_range
     if fit_range is not None:
-        with_range_loss(model, fit_range)
+        model.velocity_layer.with_range_loss(fit_range)
 
     data = args.data
     x_train = tf.convert_to_tensor(list(data.keys()))
