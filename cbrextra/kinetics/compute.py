@@ -1,13 +1,21 @@
 from keras.losses import MeanSquaredError
 import tensorflow as tf
+from keras.optimizers import Adam
 from typing import Any
 
 from .data import *
+from .models.partial_inhibition import PartialInhibitionModel, PartialInhibitionSimulationModel
 from .models.factory import select_eval_model, select_simulation_model
 
 def eval_model(args: EvalArgs) -> EvalResult:
 
-    model = select_eval_model(args.model)
+    spec = args.model.model_parameters
+    model = PartialInhibitionModel(
+        ksi = spec.ksi,
+        km = spec.km,
+        vmax = spec.vmax,
+        beta = spec.beta
+    )
     values = tf.convert_to_tensor(args.data)
     result : Any = model(values)
     
@@ -22,16 +30,19 @@ def eval_model(args: EvalArgs) -> EvalResult:
     )
 
 def fit_model(args: FitArgs) -> FitResult:
-    model = select_eval_model(args.model)
+
+    spec = args.model.model_parameters
+    model = PartialInhibitionModel(
+        ksi = spec.ksi,
+        km = spec.km,
+        vmax = spec.vmax,
+        beta = spec.beta,
+        ranges = args.fit_range
+    )
     loss = MeanSquaredError()
 
-    fit_range = args.fit_range
-
-    if fit_range is not None:
-        model.velocity_layer.with_range_loss(fit_range)
-
     model.compile(
-        optimizer='adam',
+        optimizer=Adam(learning_rate=0.0001),
         loss=loss,
         metrics=['accuracy']
     )
@@ -51,7 +62,15 @@ def fit_model(args: FitArgs) -> FitResult:
     )
 
 def simulate_model(args: SimulateArgs) -> SimulateResult:
-    model = select_simulation_model(args.model, args.simulation_spec)
+
+    spec = args.model.model_parameters
+    model = PartialInhibitionSimulationModel(
+        ksi = spec.ksi,
+        km = spec.km,
+        beta = spec.beta,
+        vmax = spec.vmax,
+        simulation_spec = args.simulation_spec
+    )
     input = tf.convert_to_tensor(args.initial_concentrations)
     result = model(input)
 
@@ -64,18 +83,23 @@ def simulate_model(args: SimulateArgs) -> SimulateResult:
     )
 
 def fit_by_simulation(args: FitSimulationArgs):
-    model = select_simulation_model(args.model, args.simulation_spec)
 
-    fit_range = args.fit_range
-    if fit_range is not None:
-        model.velocity_layer.with_range_loss(fit_range)
+    spec = args.model.model_parameters
+    model = PartialInhibitionSimulationModel(
+        ksi = spec.ksi,
+        km = spec.km,
+        beta = spec.beta,
+        vmax = spec.vmax,
+        simulation_spec = args.simulation_spec,
+        ranges = args.fit_range
+    )
 
     data = args.data
     x_train = tf.convert_to_tensor(list(data.keys()))
     y_train = tf.convert_to_tensor(list(data.values()))
     loss = MeanSquaredError()
     model.compile(
-        optimizer='adam',
+        optimizer=Adam(),
         loss=loss,
         metrics=['accuracy']
     )

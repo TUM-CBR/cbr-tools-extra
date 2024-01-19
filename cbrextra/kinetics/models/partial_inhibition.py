@@ -1,6 +1,8 @@
 import tensorflow as tf
 import keras
-from typing import Any, Union
+from keras.constraints import NonNeg
+from keras.regularizers import Regularizer
+from typing import Any, Optional
 
 from ..data import ModelSpec, PartialInhibitionParameters, PartialInhibitionRange, SimulationSpec
 
@@ -10,6 +12,58 @@ def constant_init(value: float):
         "config": {"value": value}
     }
 
+class RangeRegularizer(Regularizer):
+
+    def __init__(self, low: Optional[float], high: Optional[float]):
+        self.low_in = low
+        self.low = tf.constant(
+            0 if low is None else low,
+            dtype=tf.float32,
+            shape=()
+        )
+        self.low_w = tf.constant(
+            0 if low is None else 1,
+            dtype=tf.float32,
+            shape=()
+        )
+
+        self.high_in = high
+        self.high = tf.constant(
+            0 if high is None else high,
+            dtype=tf.float32,
+            shape=()
+        )
+        self.high_w = tf.constant(
+            0 if high is None else 1,
+            dtype=tf.float32,
+            shape=()
+        )
+
+        self.zero = tf.constant(0, dtype=tf.float32, shape=())
+
+    @tf.function
+    def __call__(self, value: Any) -> Any:
+
+        low_loss = tf.cond(
+            pred = tf.less(value, self.low),
+            true_fn = lambda: tf.exp(tf.abs(self.low - value)) * self.low_w,
+            false_fn = lambda: self.zero
+        )
+
+        high_loss = tf.cond(
+            pred = tf.greater(value, self.high),
+            true_fn = lambda: tf.exp(tf.abs(value - self.high)) * self.high_w,
+            false_fn = lambda: self.zero
+        )
+
+        return low_loss + high_loss
+    
+    def get_config(self):
+        return {
+            'low': self.low_in,
+            'high': self.high_in
+        }
+
 class PartialInhibitionLayer(keras.layers.Layer):
 
     def __init__(
@@ -17,7 +71,8 @@ class PartialInhibitionLayer(keras.layers.Layer):
         ksi : float,
         km : float,
         vmax : float,
-        beta : float
+        beta : float,
+        ranges: Optional[PartialInhibitionRange] = None
     ):
         super().__init__()
 
@@ -25,31 +80,52 @@ class PartialInhibitionLayer(keras.layers.Layer):
         self.__km_0 = km
         self.__vmax_0 = vmax
         self.__beta_0 = beta
+        self.ranges = ranges
 
     def build(self, input_shape : Any):
+
+        ranges = self.ranges
+        if ranges is not None:
+            ksi_reg = RangeRegularizer(*ranges.ksi)
+            beta_reg = RangeRegularizer(*ranges.beta)
+            km_reg = RangeRegularizer(*ranges.km)
+            vmax_reg = RangeRegularizer(*ranges.vmax)
+        else:
+            ksi_reg = None
+            beta_reg = None
+            km_reg = None
+            vmax_reg = None
 
         self.ksi : Any = self.add_weight(
             shape=(),
             initializer=constant_init(self.__ksi_0),
-            trainable=True
+            trainable=True,
+            constraint=NonNeg(),
+            regularizer=ksi_reg
         )
 
         self.beta : Any = self.add_weight(
             shape=(),
             initializer=constant_init(self.__beta_0),
-            trainable=True
+            trainable=True,
+            constraint=NonNeg(),
+            regularizer=beta_reg
         )
 
         self.km : Any = self.add_weight(
             shape=(),
             initializer=constant_init(self.__km_0),
-            trainable=True
+            trainable=True,
+            constraint=NonNeg(),
+            regularizer=km_reg
         )
 
         self.vmax : Any = self.add_weight(
             shape=(),
             initializer=constant_init(self.__vmax_0),
-            trainable=True
+            trainable=True,
+            constraint=NonNeg(),
+            regularizer=vmax_reg
         )
 
         self.one : Any = self.add_weight(
@@ -58,12 +134,15 @@ class PartialInhibitionLayer(keras.layers.Layer):
             trainable=False
         )
 
+        self.no_penalty : Any = tf.constant(0, dtype=tf.float32, shape=())
+        self.epsillon = tf.constant(0.0000000000001, dtype=tf.float32, shape=())
+
     def call(self, inputs : Any, *args : Any, **kwargs : Any) -> Any:
 
-        num = (self.one + self.beta * inputs / self.ksi) * inputs * self.vmax
-        den = self.km + (1 + inputs / self.ksi) * inputs
+        num = (self.one + self.beta * inputs / (self.epsillon + self.ksi)) * inputs * self.vmax
+        den = self.km + (self.one + inputs / (self.epsillon + self.ksi)) * inputs
 
-        return num / den
+        return num / (den + self.epsillon)
 
     def to_model_spec(self, name: str) -> ModelSpec:
         return ModelSpec(
@@ -75,91 +154,23 @@ class PartialInhibitionLayer(keras.layers.Layer):
                 beta = float(self.beta)
             )
         )
-
+    
     @tf.function
-    def divergence_penalty(self, upper: Any, lower: Any) -> Any:
-        """Penalty applied when a variable goes outside a desried range.
-        The difference between the current value and the boundry is multiplied
-        by a distortion factor to amplify the effect. The resulting value is
-        raised to a power of 4. This has been chosen as the SDG algorithm will
-        look at the first two derivatives to guide its path. A power of 4 is
-        the smallest power where the 1st and 2nd derivative will not be constant."""
-
-        return tf.pow(
-            tf.multiply(
-                self.loss_distortion,
-                tf.abs(upper - lower)
-            ),
-            self.divergence_penalty_power
-        )
-
-    def min_value_loss(
-        self,
-        variable: Any,
-        min_value: Any
-    ) -> Any:
-        return tf.cond(
-            pred = tf.greater_equal(variable, min_value),
-            true_fn = tf.function(lambda: self.no_penalty),
-            false_fn = tf.function(lambda: self.divergence_penalty(min_value, variable))
-        )
-
-    @tf.function
-    def max_value_loss(
-        self,
-        variable: Any,
-        max_value: Any
-    ) -> Any:
+    def km_vs_ksi_loss(self) -> Any:
 
         return tf.cond(
-            pred = tf.less_equal(variable, max_value),
-            true_fn = tf.function(lambda: self.no_penalty),
-            false_fn = tf.function(lambda: self.divergence_penalty(variable, max_value))
+            pred = self.ksi >= self.km,
+            true_fn = lambda: self.no_penalty,
+            false_fn = lambda: tf.exp(tf.abs(self.km - self.ksi))
         )
     
-    def with_range_loss(
-        self,
-        ranges: PartialInhibitionRange
-    ):
-        self.loss_distortion = tf.constant(100000, dtype=tf.float32, shape=())
-        self.divergence_penalty_power = tf.constant(4, dtype=tf.float32, shape=())
-        self.no_penalty = tf.constant(0, dtype=tf.float32, shape=())
+    @tf.function
+    def beta_vs_vmax_loss(self) -> Any:
+        return self.no_penalty
 
-        min_ksi, max_ksi = ranges.ksi
-        if min_ksi is not None:
-            self.min_ksi = tf.constant(min_ksi, dtype=tf.float32, shape=())
-            self.add_loss(lambda: self.min_value_loss(self.ksi, self.min_ksi))
-
-        if max_ksi is not None:
-            self.max_ksi = tf.constant(max_ksi, dtype=tf.float32, shape=())
-            self.add_loss(lambda: self.max_value_loss(self.ksi, self.max_ksi))
-
-        min_km, max_km = ranges.km
-        if min_km is not None:
-            self.min_km = tf.constant(min_km, dtype=tf.float32, shape=())
-            self.add_loss(lambda: self.min_value_loss(self.km, self.min_km))
-
-        if max_km is not None:
-            self.max_km = tf.constant(max_km, dtype=tf.float32, shape=())
-            self.add_loss(lambda: self.max_value_loss(self.km, self.max_km))
-
-        min_vmax, max_vmax = ranges.vmax
-        if min_vmax is not None:
-            self.min_vmax = tf.constant(min_vmax, dtype=tf.float32, shape=())
-            self.add_loss(lambda: self.min_value_loss(self.vmax, self.min_vmax))
-
-        if max_vmax is not None:
-            self.max_vmax = tf.constant(max_vmax, dtype=tf.float32, shape=())
-            self.add_loss(lambda: self.max_value_loss(self.vmax, self.max_vmax))
-
-        min_beta, max_beta = ranges.beta
-        if min_beta is not None:
-            self.min_beta = tf.constant(min_beta, dtype=tf.float32, shape=())
-            self.add_loss(lambda: self.min_value_loss(self.beta, self.min_beta))
-
-        if max_beta is not None:
-            self.max_beta = tf.constant(max_beta, dtype=tf.float32, shape=())
-            self.add_loss(lambda: self.max_value_loss(self.beta, self.max_beta))
+    @tf.function
+    def model_correctness_loss(self) -> Any:
+        return self.km_vs_ksi_loss() + self.beta_vs_vmax_loss()
 
 class PartialInhibitionModel(keras.Model):
 
@@ -170,10 +181,11 @@ class PartialInhibitionModel(keras.Model):
         ksi : float,
         km : float,
         vmax : float,
-        beta : float
+        beta : float,
+        ranges: Optional[PartialInhibitionRange] = None
     ):
         super().__init__()
-        self.velocity_layer = PartialInhibitionLayer(ksi, km, vmax, beta)
+        self.velocity_layer = PartialInhibitionLayer(ksi, km, vmax, beta, ranges)
 
     def call(self, inputs : Any, training : Any = None, mask : Any = None) -> Any:
         return self.velocity_layer(inputs)
@@ -191,10 +203,11 @@ class PartialInhibitionSimulationModel(keras.Model):
         km : float,
         vmax : float,
         beta : float,
-        simulation_spec: SimulationSpec
+        simulation_spec: SimulationSpec,
+        ranges: Optional[PartialInhibitionRange] = None
     ):
         super().__init__()
-        self.velocity_layer = PartialInhibitionLayer(ksi, km, vmax, beta)
+        self.velocity_layer = PartialInhibitionLayer(ksi, km, vmax, beta, ranges)
         self.__simulation_spec = simulation_spec
 
     def to_model_spec(self) -> ModelSpec:
@@ -245,8 +258,11 @@ class PartialInhibitionSimulationModel(keras.Model):
 
         return (p + 1, p_conc, s_conc, result.write(p, p_conc))
 
-    @tf.function
     def call(self, inputs : Any, training : Any = None, mask : Any = None) -> Any:
+        return self.simulate(inputs)
+
+    @tf.function
+    def simulate(self, inputs: Any) -> Any:
         (_1,_2,_3,result) = tf.while_loop(
             lambda p,p_conc,s_conc,result: tf.less(p, self.periods),
             self.simulation_step,
