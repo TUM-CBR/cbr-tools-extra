@@ -1,11 +1,11 @@
 from keras.losses import MeanSquaredError
 import tensorflow as tf
 from keras.optimizers import Adam
+from keras.optimizers.experimental import SGD
 from typing import Any
 
 from .data import *
 from .models.partial_inhibition import PartialInhibitionModel, PartialInhibitionSimulationModel
-from .models.factory import select_eval_model, select_simulation_model
 
 def eval_model(args: EvalArgs) -> EvalResult:
 
@@ -42,7 +42,7 @@ def fit_model(args: FitArgs) -> FitResult:
     loss = MeanSquaredError()
 
     model.compile(
-        optimizer=Adam(learning_rate=0.0001),
+        optimizer=Adam(learning_rate=0.001),
         loss=loss,
         metrics=['accuracy']
     )

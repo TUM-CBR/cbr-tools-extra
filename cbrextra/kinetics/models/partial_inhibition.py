@@ -103,7 +103,6 @@ class PartialInhibitionLayer(keras.layers.Layer):
             constraint=NonNeg(),
             regularizer=ksi_reg
         )
-
         self.beta : Any = self.add_weight(
             shape=(),
             initializer=constant_init(self.__beta_0),
@@ -111,7 +110,7 @@ class PartialInhibitionLayer(keras.layers.Layer):
             constraint=NonNeg(),
             regularizer=beta_reg
         )
-
+#
         self.km : Any = self.add_weight(
             shape=(),
             initializer=constant_init(self.__km_0),
@@ -119,7 +118,7 @@ class PartialInhibitionLayer(keras.layers.Layer):
             constraint=NonNeg(),
             regularizer=km_reg
         )
-
+#
         self.vmax : Any = self.add_weight(
             shape=(),
             initializer=constant_init(self.__vmax_0),
@@ -128,21 +127,17 @@ class PartialInhibitionLayer(keras.layers.Layer):
             regularizer=vmax_reg
         )
 
-        self.one : Any = self.add_weight(
-            shape=(),
-            initializer=constant_init(1),
-            trainable=False
-        )
 
-        self.no_penalty : Any = tf.constant(0, dtype=tf.float32, shape=())
-        self.epsillon = tf.constant(0.0000000000001, dtype=tf.float32, shape=())
+    def call(self, inputs : Any, training = False, *args : Any, **kwargs : Any) -> Any:
 
-    def call(self, inputs : Any, *args : Any, **kwargs : Any) -> Any:
+        epsillon = tf.constant(0.00000000000019236959237, dtype=tf.float32, shape=())
 
-        num = (self.one + self.beta * inputs / (self.epsillon + self.ksi)) * inputs * self.vmax
-        den = self.km + (self.one + inputs / (self.epsillon + self.ksi)) * inputs
+        # adding epsillon to avoid a division by 0
+        ksi = self.ksi + epsillon
+        num = 1 + ((self.beta * inputs) / ksi)
+        den = self.km + (inputs * ((1 + inputs) / ksi))
 
-        return num / (den + self.epsillon)
+        return inputs * self.vmax * num / (den + epsillon)
 
     def to_model_spec(self, name: str) -> ModelSpec:
         return ModelSpec(
@@ -154,23 +149,6 @@ class PartialInhibitionLayer(keras.layers.Layer):
                 beta = float(self.beta)
             )
         )
-    
-    @tf.function
-    def km_vs_ksi_loss(self) -> Any:
-
-        return tf.cond(
-            pred = self.ksi >= self.km,
-            true_fn = lambda: self.no_penalty,
-            false_fn = lambda: tf.exp(tf.abs(self.km - self.ksi))
-        )
-    
-    @tf.function
-    def beta_vs_vmax_loss(self) -> Any:
-        return self.no_penalty
-
-    @tf.function
-    def model_correctness_loss(self) -> Any:
-        return self.km_vs_ksi_loss() + self.beta_vs_vmax_loss()
 
 class PartialInhibitionModel(keras.Model):
 
