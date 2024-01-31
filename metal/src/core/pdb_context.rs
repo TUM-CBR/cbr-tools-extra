@@ -1,6 +1,7 @@
 use pdbtbx::*;
 
-use super::error::{CbrExtraError};
+use super::data::*;
+use super::error::*;
 
 pub struct PdbContext {
     pdb : PDB
@@ -8,6 +9,7 @@ pub struct PdbContext {
 
 impl PdbContext {
 
+    /// Open a file containing a PDB structure and load it into memory.
     pub fn open_file(path: impl AsRef<str>) -> Result<Self, CbrExtraError> {
 
         let result =
@@ -15,7 +17,15 @@ impl PdbContext {
 
         match result {
             Ok((pdb, errors)) => Ok(PdbContext { pdb }),
-            Err(errors) => Err(errors.into())
+            Err(errors) => Err((&errors).into())
         }
+    }
+
+    pub fn pdb(&self) -> &PDB {
+        &self.pdb
+    }
+
+    pub fn bounding_box(&self) -> (Point3d, Point3d) {
+        self.pdb.bounding_box()
     }
 }

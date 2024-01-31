@@ -1,6 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
-        "./cbrextra_metal/Cargo.toml",
-        "./cbrextra_metal/Cargo.toml"
+        "./metal/Cargo.toml",
+        "./metal/Cargo.toml",
+        "./metal/Cargo.toml"
     ]
 }
