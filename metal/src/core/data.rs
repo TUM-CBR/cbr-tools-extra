@@ -1,6 +1,27 @@
+use std::iter::Map;
+
 pub type Point3d = (f64, f64, f64);
 
 pub type Matrix3d = (Point3d, Point3d, Point3d);
+
+// Represents a box in 3D space by using tow points to
+// denote the bottom corner and the top corner
+pub struct Box3D {
+    pub bottom : Point3d,
+    pub top : Point3d
+}
+
+impl Box3D {
+    pub fn create(
+        x0: f64, y0: f64, z0: f64,
+        xn: f64, yn: f64, zn: f64
+    ) -> Box3D {
+        Box3D {
+            bottom: (x0, y0, z0),
+            top: (xn, yn, zn) 
+        }
+    }
+}
 
 pub const IDENTITY_3D : Matrix3d = (
     (1.0, 0.0, 0.0),
@@ -11,19 +32,34 @@ pub const IDENTITY_3D : Matrix3d = (
 pub trait Functor<T> {
 
     fn fmap<F>(&self, op: F) -> Self
-        where F : Fn(T) -> T;
+        where
+            F : Fn(T) -> T;
 }
 
-impl<T> Functor<T> for (T, T, T) {
+impl<T> Functor<T> for (T, T, T) where T : Copy {
 
     fn fmap<F>(&self, op : F) -> (T, T, T)
-        where F : Fn(T) -> T {
+        where
+            F : Fn(T) -> T {
         let (x,y,z) = self;
         (
             op(*x),
             op(*y),
             op(*z)
         )
+    }
+}
+
+impl Functor<Point3d> for Box3D {
+
+    fn fmap<F>(&self, op: F) -> Self
+    where
+        F : Fn(Point3d) -> Point3d {
+        
+        Box3D {
+            bottom: op(self.bottom),
+            top: op(self.top)
+        }
     }
 }
 
@@ -187,10 +223,18 @@ pub trait HasRotation {
 
     /// Computes the rotation matrix rotate points using
     /// this vector as the axis.
-    fn rot_matrix(&self, angle: f64) -> Self::RotationMatrix;
+    fn rot_matrix(axis: &Point3d, angle: f64) -> Self::RotationMatrix;
 
     /// Rotate the vector using the given rotation matrix
     fn apply_rot(&self, matrix: Self::RotationMatrix) -> Self;
+
+    fn rotate(&self, angle: f64, axis: &Point3d) -> Self 
+        where Self : Sized {
+
+        self.apply_rot(
+            <Self as HasRotation>::rot_matrix(axis, angle)
+        )
+    }
 }
 
 pub fn skew_symmetric_matrix_3d(vec: &Point3d) -> Matrix3d {
@@ -206,8 +250,8 @@ impl HasRotation for Point3d {
 
     type RotationMatrix = Matrix3d;
 
-    fn rot_matrix(&self, angle: f64) -> Self::RotationMatrix {
-        let unit_self = self.unit();
+    fn rot_matrix(axis: &Point3d, angle: f64) -> Self::RotationMatrix {
+        let unit_self = axis.unit();
         let r1 = IDENTITY_3D.mult(angle.cos());
         let r2 = unit_self.outter(&unit_self).mult(1.0 - angle.cos());
         let r3 = skew_symmetric_matrix_3d(&unit_self).mult(angle.sin());
@@ -217,6 +261,23 @@ impl HasRotation for Point3d {
 
     fn apply_rot(&self, matrix: Self::RotationMatrix) -> Self {
         self.mult(&matrix)
+    }
+}
+
+impl HasRotation for Box3D {
+
+    type RotationMatrix = Matrix3d;
+
+    fn rot_matrix(axis: &Point3d, angle: f64) -> Self::RotationMatrix {
+        <Point3d as HasRotation>::rot_matrix(axis, angle)
+    }
+
+    fn apply_rot(&self, matrix: Self::RotationMatrix) -> Self {
+        
+        Box3D {
+            bottom : self.bottom.apply_rot(matrix),
+            top: self.top.apply_rot(matrix)
+        }
     }
 }
 
@@ -230,5 +291,24 @@ impl HasAbsolute for Point3d {
     fn abs(&self) -> Self {
         self.fmap(|v|{ v.abs() })
 
+    }
+}
+
+pub trait ZipN {
+    type TOutCollection<TOut, TIter>;
+
+    fn zip_n<TIn, TIter>(self, in_values : TIter) -> Self::TOutCollection<TIn, <TIter as IntoIterator>::IntoIter>
+        where TIter : IntoIterator<Item = TIn>;
+}
+
+impl<TInIter, TValue1, TValue2> ZipN for TInIter where TInIter : Iterator<Item = (TValue1, TValue2)> {
+    
+    type TOutCollection<TOut, TIter> = Map<std::iter::Zip<TInIter, TIter>, fn(((TValue1, TValue2), TOut)) -> (TValue1, TValue2, TOut)>;
+
+    fn zip_n<TIn, TIter>(self, in_values : TIter) -> Self::TOutCollection<TIn, <TIter as IntoIterator>::IntoIter>
+            where TIter : IntoIterator<Item = TIn> {
+        
+        let mapper : fn (((TValue1, TValue2), TIn)) -> (TValue1, TValue2, TIn) = |(((v1, v2), v3))| { (v1, v2, v3) };
+        self.zip(in_values.into_iter()).map(mapper)
     }
 }
