@@ -11,11 +11,11 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
 
     MESSAGE_ID_COUNTER = AtomicCounter()
 
-    class OnMessageContext(OnMessageContextBase):
+    class OnMessageContext(OnMessageContextBase[Any, Any]):
 
         def __init__(
             self,
-            handler: 'InteractiveHandler'
+            handler: 'InteractiveHandler[TMessageIn, TMessageOut]'
         ) -> None:
             super().__init__()
             self.__handler = handler
@@ -66,7 +66,7 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
     def __handle_message_input(
         self,
         input: InteractiveInput,
-        payload : dict
+        payload : Dict[Any, Any]
     ):
 
         try:
@@ -165,7 +165,7 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
                 )
             
 def run_interactive(
-    spec: InteractiveSpec,
+    spec: InteractiveSpec[TMessageIn, TMessageOut],
     input_stream : TextIO = sys.stdin,
     output_stream : TextIO = sys.stdout
 ):

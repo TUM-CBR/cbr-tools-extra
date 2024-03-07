@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 class EntityType(Enum):
     STOP = 'stop'
@@ -9,7 +9,7 @@ class EntityType(Enum):
 class InteractiveInput(BaseModel):
     uid : int
     entity_type: str
-    payload: Optional[dict] = Field(default=None)
+    payload: Optional[Dict[Any, Any]] = Field(default=None)
 
 class ErrorCodes(Enum):
     UnknownError = 0
@@ -25,7 +25,7 @@ class InteractiveError(BaseModel):
 
 class InteractiveValue(BaseModel):
     input_uids: List[int]
-    payload: dict
+    payload: Dict[Any, Any]
 
 class InteractiveOutput(BaseModel):
     uid : int
