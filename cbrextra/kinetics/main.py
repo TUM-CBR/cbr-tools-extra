@@ -19,7 +19,7 @@ class EnzymeKineticsInteractive(InteractiveSpec[InteractiveInput, InteractiveOut
     def parse_message(self, args: 'ParseMessageArgs[InteractiveInput, InteractiveOutput]') -> InteractiveInput:
         return InteractiveInput(**args.payload)
 
-    def serialize_message(self, args: 'SerializeMessageArgs[InteractiveInput, InteractiveOutput]') -> dict:
+    def serialize_message(self, args: 'SerializeMessageArgs[InteractiveInput, InteractiveOutput]') -> Dict[Any, Any]:
         return args.value.model_dump()
 
     def on_message(self, args: 'OnMessageArgs[InteractiveInput, InteractiveOutput]') -> None:

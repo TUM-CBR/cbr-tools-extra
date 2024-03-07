@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Generic, List, NamedTuple, Optional, TypeVar
+from typing import Any, Dict, Generic, List, NamedTuple, Optional, TypeVar
 
 TMessageIn = TypeVar('TMessageIn')
 TMessageOut = TypeVar('TMessageOut')
@@ -11,7 +11,7 @@ class MessageContextBase(ABC, Generic[TMessageIn, TMessageOut]):
     pass
 
 class ParseMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
-    payload : dict
+    payload : Dict[Any, Any]
 
 class SerializeMessageArgs(NamedTuple, Generic[TMessageIn, TMessageOut]):
     value : TMessageOut
@@ -57,7 +57,7 @@ class InteractiveSpec(ABC, Generic[TMessageIn, TMessageOut]):
     def serialize_message(
         self,
         args: 'SerializeMessageArgs[TMessageIn, TMessageOut]'
-    ) -> dict:
+    ) -> Dict[Any, Any]:
         raise NotImplementedError()
 
     @abstractmethod

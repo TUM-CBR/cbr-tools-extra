@@ -7,22 +7,7 @@ from open3d.utility import Vector3dVector
 import pandas as pd
 from typing import cast, Dict, List, NamedTuple
 
-K_BOX_ID = "box_id"
-K_BOX_SIZE = "size"
-K_BOX_DEPTH = "depth"
-K_BOX_X = "x"
-K_BOX_Y = "y"
-K_BOX_Z = "z"
-K_BOX_CX = "cx"
-K_BOX_CY = "cy"
-K_BOX_CZ = "cz"
-
-class ProteinCavity(NamedTuple):
-    boxes: pd.DataFrame
-
-class FindCavitiesGraph(NamedTuple):
-    graph: Graph
-    depth: int
+from .data import *
 
 class FindCavitiesResult(NamedTuple):
     context: 'FindCavitiesContext'
@@ -32,7 +17,7 @@ class FindCavitiesResult(NamedTuple):
     depths_to_volume: Dict[int, float]
 
     def __get_boxes(self, graph: Graph) -> ProteinCavity:
-        node_ids = cast(List[int], [node['name'] for node in graph.vs])
+        node_ids = [node['name'] for node in graph.vs]
         nodes_df = self.nodes_df.loc[node_ids]
 
         return ProteinCavity(nodes_df)
@@ -215,7 +200,51 @@ class FindCavitiesContext(NamedTuple):
         )
 
     @staticmethod
-    def find_cavities(points: NDArray[float64]):
+    def find_cavities(points: NDArray[float64]) -> FindCavitiesResult:
         ctx = FindCavitiesContext.construct(points)
         corners = ctx.get_empty_corners()
         return ctx.construct_graph(corners)
+    
+def find_cavities(points: NDArray[float64]) -> FindCavitiesResult:
+    return FindCavitiesContext.find_cavities(points)
+
+rot_360 = np.pi * 2
+sphere_segs = 16
+
+UNIT_SPHERE: NDArray[float64] = np.unique(
+    np.concatenate([
+        # Center of the sphere
+        np.array([[0,0,0]]),
+
+        # Points along the surface
+        np.array([
+            [
+                np.sin(phi) * np.cos(theta),
+                np.sin(phi) * np.sin(theta),
+                np.cos(phi)
+            ]
+            for xa in range(sphere_segs - 1)
+            for ya in range(sphere_segs - 1)
+            for phi in [xa*rot_360/sphere_segs]
+            for theta in [ya*rot_360/sphere_segs]
+        ])
+    ]),
+    axis=0
+)
+    
+def to_spheres_cloud(
+    points: List[List[float]],
+    radii: List[float]) -> NDArray[float64]:
+    """Convert a list of points representing spheres ([cx,cy,cz,radius]) to a set
+    of points positioned around the centers and surfaces of said spheres."""
+
+    centers = np.array(points)
+    radii_scales = np.array(radii)
+
+    # Replicate the points of the sphere once per given radius scaling factor, then multiply
+    # each of the points to its corresponding radius to scale the spheres
+    spheres = np.repeat(UNIT_SPHERE, len(radii_scales), axis=0) * np.tile(radii_scales, (3, len(UNIT_SPHERE))).T
+
+    # Replicate each center once per point in the sphere, then add them to the
+    # points of the spheres in order to traslate them to the correct place
+    return np.repeat(centers, len(UNIT_SPHERE), axis=0) + spheres

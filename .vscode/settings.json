@@ -7,5 +7,12 @@
         "reportUnknownVariableType": "warning",
         "reportMissingTypeStubs": "warning"
     },
-    "python.analysis.extraPaths": ["${workspaceFolder}/typings"]
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/typings"
+    ],
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }
