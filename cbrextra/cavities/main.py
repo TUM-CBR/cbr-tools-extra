@@ -90,7 +90,7 @@ class Cavities(Module):
         output_stream: TextIO = sys.stdout
     ):
 
-        with open(options['input-points'], 'r') as points_json:
+        with open(options['--input-points'], 'r') as points_json:
             points = [
                 Points(**value)
                 for value in json.load(points_json)
@@ -110,3 +110,5 @@ class Cavities(Module):
             return Result.success()
         
         return Result.not_requested()
+    
+module = Cavities()

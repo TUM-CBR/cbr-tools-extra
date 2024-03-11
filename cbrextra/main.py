@@ -44,6 +44,9 @@ def main():
     elif command == "kinetics":
         from cbrextra.kinetics.main import module as kinetics
         result = kinetics.main(context)
+    elif command == "cavities":
+        from cbrextra.cavities.main import module as cavities
+        result = cavities.main(context)
 
     if result is None or not result.is_success:
         print(docopt(__doc__), file=stderr)
