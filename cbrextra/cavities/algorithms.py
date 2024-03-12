@@ -50,9 +50,10 @@ class FindCavitiesContext(NamedTuple):
     points: NDArray[float64]
     point_cloud: PointCloud
     octree: Octree
+    empty_region_treshold: int
 
     @staticmethod
-    def construct(points: NDArray[float64]) -> 'FindCavitiesContext':
+    def construct(points: NDArray[float64], empty_region_treshold: int) -> 'FindCavitiesContext':
 
         pcd = PointCloud()
         pcd.points = Vector3dVector(points)
@@ -65,7 +66,8 @@ class FindCavitiesContext(NamedTuple):
         return FindCavitiesContext(
             points=points,
             point_cloud=pcd,
-            octree=octree
+            octree=octree,
+            empty_region_treshold=empty_region_treshold
         )
 
     def get_empty_corners(self) -> pd.DataFrame:
@@ -93,7 +95,7 @@ class FindCavitiesContext(NamedTuple):
 
             if isinstance(node, OctreeInternalPointNode):
                 for i,child in enumerate(node.children):
-                    if child is not None:
+                    if child is not None and len(child.indices) > self.empty_region_treshold:
                         continue
 
                     box_id += 1
@@ -200,13 +202,16 @@ class FindCavitiesContext(NamedTuple):
         )
 
     @staticmethod
-    def find_cavities(points: NDArray[float64]) -> FindCavitiesResult:
-        ctx = FindCavitiesContext.construct(points)
+    def find_cavities(
+        points: NDArray[float64],
+        empty_region_treshold: int
+    ) -> FindCavitiesResult:
+        ctx = FindCavitiesContext.construct(points, empty_region_treshold)
         corners = ctx.get_empty_corners()
         return ctx.construct_graph(corners)
     
-def find_cavities(points: NDArray[float64]) -> FindCavitiesResult:
-    return FindCavitiesContext.find_cavities(points)
+def find_cavities(points: NDArray[float64], empty_region_treshold: int) -> FindCavitiesResult:
+    return FindCavitiesContext.find_cavities(points, empty_region_treshold)
 
 rot_360 = np.pi * 2
 sphere_segs = 16
@@ -234,17 +239,20 @@ UNIT_SPHERE: NDArray[float64] = np.unique(
     
 def to_spheres_cloud(
     points: List[List[float]],
-    radii: List[float]) -> NDArray[float64]:
+    radii: List[float],
+    radii_scale: float
+) -> NDArray[float64]:
     """Convert a list of points representing spheres ([cx,cy,cz,radius]) to a set
     of points positioned around the centers and surfaces of said spheres."""
 
     centers = np.array(points)
-    radii_scales = np.array(radii)
+    radii_scales = np.array(radii) * radii_scale
 
     # Replicate the points of the sphere once per given radius scaling factor, then multiply
     # each of the points to its corresponding radius to scale the spheres
     spheres = np.repeat(UNIT_SPHERE, len(radii_scales), axis=0) * np.tile(radii_scales, (3, len(UNIT_SPHERE))).T
+    #spheres = np.tile(UNIT_SPHERE, (len(radii_scales), 1)) * np.tile(radii_scales, (3, len(UNIT_SPHERE))).T
 
     # Replicate each center once per point in the sphere, then add them to the
     # points of the spheres in order to traslate them to the correct place
-    return np.repeat(centers, len(UNIT_SPHERE), axis=0) + spheres
+    return np.tile(centers, (len(UNIT_SPHERE),1)) + spheres

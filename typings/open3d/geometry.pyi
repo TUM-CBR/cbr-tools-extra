@@ -1,6 +1,6 @@
 from numpy import float64
 from numpy.typing import NDArray
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, List, Optional
 from open3d.utility import Vector3dVector
 
 class PointCloud:
@@ -14,7 +14,8 @@ class PointCloud:
     def points(self, points: Vector3dVector) -> None: ...
 
 class OctreeNode:
-    ...
+    @property
+    def indices(self) -> List[int]: ...
 
 class OctreeInternalPointNode(OctreeNode):
 

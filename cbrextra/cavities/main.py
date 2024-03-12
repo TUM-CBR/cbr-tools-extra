@@ -1,5 +1,5 @@
 """Usage:
-    cbrtools cavities interactive --input-points=<input_points_json>
+    cbrtools cavities interactive --input-points=<input_points_json> --radii-scale=<radii_scale> --empty-treshold=<empty-treshlod>
 """
 
 from docopt import docopt
@@ -18,10 +18,14 @@ from .data import *
 
 class CavitiesInstance:
 
-    def __init__(self, points: Points):
+    def __init__(
+        self,
+        points: Points,
+        settings: Options
+    ):
         self.__id = points.id
-        self.__points = algorithms.to_spheres_cloud(points.points, points.radii)
-        self.__graph = algorithms.find_cavities(self.__points)
+        self.__points = algorithms.to_spheres_cloud(points.points, points.radii, settings.radii_scale_or_default())
+        self.__graph = algorithms.find_cavities(self.__points, settings.empty_treshold_or_default())
 
     @property
     def id(self) -> str:
@@ -36,10 +40,11 @@ class CavititesInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput])
 
     def __init__(
         self,
-        points_set: List[Points]
+        points_set: List[Points],
+        options: Options
     ):
         self.__cavities = [
-            CavitiesInstance(points)
+            CavitiesInstance(points, options)
             for points in points_set
         ]
 
@@ -96,8 +101,21 @@ class Cavities(Module):
                 for value in json.load(points_json)
             ]
 
+        empty_treshold = options.get("--empty-treshold")
+        if empty_treshold is not None:
+            empty_treshold = int(empty_treshold)
+
+        radii_scale = options.get("--radii-scale")
+        if radii_scale is not None:
+            radii_scale = float(radii_scale)
+
+        algorithm_options = Options(
+            empty_treshold=empty_treshold,
+            radii_scale=radii_scale
+        )
+
         run_interactive(
-            CavititesInteractive(points),
+            CavititesInteractive(points, algorithm_options),
             input_stream,
             output_stream
         )

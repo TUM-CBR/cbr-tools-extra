@@ -15,6 +15,22 @@ K_BOX_CX = "cx"
 K_BOX_CY = "cy"
 K_BOX_CZ = "cz"
 
+class Options(NamedTuple):
+    empty_treshold: Optional[int] = None
+    radii_scale: Optional[float] = None
+
+    def empty_treshold_or_default(self) -> int:
+        if self.empty_treshold is None:
+            return 0
+        else:
+            return self.empty_treshold
+        
+    def radii_scale_or_default(self) -> float:
+        if self.radii_scale is None:
+            return 1
+        else:
+            return self.radii_scale
+
 class Points(BaseModel):
     id: str
     points: List[List[float]]
