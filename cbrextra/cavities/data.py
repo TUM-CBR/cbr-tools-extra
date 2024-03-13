@@ -18,6 +18,7 @@ K_BOX_CZ = "cz"
 class Options(NamedTuple):
     empty_treshold: Optional[int] = None
     radii_scale: Optional[float] = None
+    max_size_multiplier: Optional[float] = None
 
     def empty_treshold_or_default(self) -> int:
         if self.empty_treshold is None:
@@ -30,6 +31,32 @@ class Options(NamedTuple):
             return 1
         else:
             return self.radii_scale
+        
+    def max_size_multiplier_or_default(self) -> float:
+        if self.max_size_multiplier is None:
+            return 0.25
+        else:
+            return self.max_size_multiplier
+        
+    @classmethod
+    def from_args(cls, options: Dict[str, str]):
+        empty_treshold = options.get("--empty-treshold")
+        if empty_treshold is not None:
+            empty_treshold = int(empty_treshold)
+
+        radii_scale = options.get("--radii-scale")
+        if radii_scale is not None:
+            radii_scale = float(radii_scale)
+
+        max_size_multiplier = options.get("--max_size_multiplier")
+        if max_size_multiplier is not None:
+            max_size_multiplier = float(max_size_multiplier)
+
+        return Options(
+            empty_treshold=empty_treshold,
+            radii_scale=radii_scale,
+            max_size_multiplier=max_size_multiplier
+        )
 
 class Points(BaseModel):
     id: str

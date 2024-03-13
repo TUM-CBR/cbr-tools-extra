@@ -1,6 +1,6 @@
 from cbrextra import testutils
 from cbrextra.cavities.data import FindCavitiesArgs, InteractiveInput, InteractiveOutput, Points
-from cbrextra.cavities.main import CavitiesInstance, CavititesInteractive
+from cbrextra.cavities.main import CavitiesInstance, CavititesInteractive, Options
 
 class TestCavitiesInstance:
 
@@ -18,7 +18,7 @@ class TestCavitiesInstance:
         expected_cavities = [79]
 
         for i, atoms in enumerate(test_atoms):
-            instance = CavitiesInstance(atoms)
+            instance = CavitiesInstance(atoms, Options())
             cavs = instance.get_cavities(test_min_volume, test_max_volume)
 
             assert len(cavs) == expected_cavities[i], "Got unexpected number of cavitis for a known model"
@@ -50,7 +50,7 @@ class TestCavitiesInteractive:
             )
         ]
 
-        cavities = CavititesInteractive(test_atoms)
+        cavities = CavititesInteractive(test_atoms, Options())
         count = 0
 
         for result in testutils.test_interactive(cavities, in_messages, InteractiveInput, InteractiveOutput):

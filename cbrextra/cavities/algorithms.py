@@ -2,10 +2,13 @@ from igraph import Graph
 import numpy as np
 from numpy import float64
 from numpy.typing import NDArray
+from open3d.core import Dtype, Tensor
+from open3d import geometry
 from open3d.geometry import PointCloud, Octree, OctreeInternalPointNode, OctreeNode, OctreeNodeInfo
+from open3d.t.geometry import RaycastingScene, TriangleMesh
 from open3d.utility import Vector3dVector
 import pandas as pd
-from typing import cast, Dict, List, NamedTuple
+from typing import Iterable, Sequence, cast, Dict, List, NamedTuple
 
 from .data import *
 
@@ -15,12 +18,28 @@ class FindCavitiesResult(NamedTuple):
     nodes_df: pd.DataFrame
     edges_df: pd.DataFrame
     depths_to_volume: Dict[int, float]
+    options: Options
 
     def __get_boxes(self, graph: Graph) -> ProteinCavity:
         node_ids = [node['name'] for node in graph.vs]
         nodes_df = self.nodes_df.loc[node_ids]
 
         return ProteinCavity(nodes_df)
+    
+    def __get_clustered_groups(self, graph: Graph, vertices: Sequence[int]) -> Iterable[Graph]:
+        split_graph_treshold = len(graph.vs) * self.options.max_size_multiplier_or_default()
+        graph = graph.vs[vertices].subgraph()
+        if len(graph.vs) >= split_graph_treshold:
+            sub_culsters = graph.community_fastgreedy().as_clustering()
+
+            for cluster in sub_culsters:
+                component_graph = graph.vs[cluster].subgraph()
+                components = component_graph.connected_components()
+                for component in components:
+                    yield component_graph.vs[component].subgraph()
+        else:
+            yield graph
+            
 
     def __get_cavities_for(self, cavities: FindCavitiesGraph, min_volume: int, max_volume: int):
 
@@ -31,9 +50,10 @@ class FindCavitiesResult(NamedTuple):
 
         groups = graph.connected_components()
         accepted = [
-            self.__get_boxes(graph.vs[group].subgraph())
+            self.__get_boxes(g)
             for group in groups
-            if len(group) <= max_units and len(group) >= min_units
+            for g in self.__get_clustered_groups(graph, group)
+            if len(g.vs) <= max_units and len(g.vs) >= min_units
         ]
 
         return accepted
@@ -47,13 +67,22 @@ class FindCavitiesResult(NamedTuple):
         return values
 
 class FindCavitiesContext(NamedTuple):
+    backbone: NDArray[float64]
     points: NDArray[float64]
     point_cloud: PointCloud
     octree: Octree
-    empty_region_treshold: int
+    options: Options
+
+    @property
+    def empty_region_treshold(self) -> int:
+        return self.options.empty_treshold_or_default()
 
     @staticmethod
-    def construct(points: NDArray[float64], empty_region_treshold: int) -> 'FindCavitiesContext':
+    def construct(
+        backbone: NDArray[float64],
+        points: NDArray[float64],
+        options: Options
+    ) -> 'FindCavitiesContext':
 
         pcd = PointCloud()
         pcd.points = Vector3dVector(points)
@@ -64,11 +93,38 @@ class FindCavitiesContext(NamedTuple):
         octree.convert_from_point_cloud(pcd)
 
         return FindCavitiesContext(
+            backbone=backbone,
             points=points,
             point_cloud=pcd,
             octree=octree,
-            empty_region_treshold=empty_region_treshold
+            options=options
         )
+    
+    def get_backbone_hull(self) -> TriangleMesh:
+        """We use a simple surface reconstruction to remove the
+        empty boxes that reside outside of the protein."""
+
+        backbone_pc = PointCloud()
+        backbone_pc.points = Vector3dVector(self.backbone)
+        #(backbone_hull,_) = backbone_pc.compute_convex_hull()
+
+        # We try to use alpha shape with increments of 0.5 until
+        # we get a watertight convex hull or we hit an alpha
+        # of 10
+        for i in range(5,100,5):
+            alpha = i/10
+            try:
+                backbone_hull = geometry.TriangleMesh.create_from_point_cloud_alpha_shape(backbone_pc, alpha)
+                if backbone_hull.is_watertight():
+                    return backbone_hull
+            except Exception:
+                # Todo: there seems to be a bug in Open3d which sometimes causes alpha_shape
+                # to throw. We just ignore and continue tyring as increasing the alpha
+                # does evenutally prevent the crash
+                pass
+
+        # Could not use alpha_shape, fall back to the convex hull
+        return backbone_pc.compute_convex_hull()[0]
 
     def get_empty_corners(self) -> pd.DataFrame:
         """Constructs a DataFrame that contains the coordinates of the corners of all of the
@@ -126,6 +182,17 @@ class FindCavitiesContext(NamedTuple):
 
         self.octree.traverse(apply)
         values = np.concatenate(corners)
+
+        # We will remove all points that are outside the protein
+        # for this we create a surface mesh that surrounds the
+        # protein. We then remove all points that reside outside
+        backbone_hull = self.get_backbone_hull()
+        scene = RaycastingScene()
+        scene.add_triangles(TriangleMesh.from_legacy(backbone_hull))
+        query = Tensor(values[:,3:6], dtype=Dtype.Float32)
+        distance_mask = scene.compute_signed_distance(query).numpy() <= 0
+        values = values[distance_mask]
+
 
         return pd.DataFrame({
             K_BOX_ID: values[:,0].astype('int'),
@@ -198,20 +265,22 @@ class FindCavitiesContext(NamedTuple):
             graphs,
             nodes_df,
             edges_df,
-            depths
+            depths,
+            self.options
         )
 
     @staticmethod
     def find_cavities(
+        backbone: NDArray[float64],
         points: NDArray[float64],
-        empty_region_treshold: int
+        optionas: Options
     ) -> FindCavitiesResult:
-        ctx = FindCavitiesContext.construct(points, empty_region_treshold)
+        ctx = FindCavitiesContext.construct(backbone, points, optionas)
         corners = ctx.get_empty_corners()
         return ctx.construct_graph(corners)
     
-def find_cavities(points: NDArray[float64], empty_region_treshold: int) -> FindCavitiesResult:
-    return FindCavitiesContext.find_cavities(points, empty_region_treshold)
+def find_cavities(backbone: NDArray[float64], points: NDArray[float64], optionas: Options) -> FindCavitiesResult:
+    return FindCavitiesContext.find_cavities(backbone, points, optionas)
 
 rot_360 = np.pi * 2
 sphere_segs = 16

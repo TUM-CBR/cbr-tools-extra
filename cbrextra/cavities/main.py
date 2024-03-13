@@ -1,9 +1,10 @@
 """Usage:
-    cbrtools cavities interactive --input-points=<input_points_json> --radii-scale=<radii_scale> --empty-treshold=<empty-treshlod>
+    cbrtools cavities interactive --input-points=<input_points_json> --radii-scale=<radii_scale> --empty-treshold=<empty-treshlod> --max_size_multiplier=<max_size_multiplier>
 """
 
 from docopt import docopt
 import json
+import numpy as np
 import sys
 from typing import Any, Dict, TextIO
 
@@ -25,7 +26,7 @@ class CavitiesInstance:
     ):
         self.__id = points.id
         self.__points = algorithms.to_spheres_cloud(points.points, points.radii, settings.radii_scale_or_default())
-        self.__graph = algorithms.find_cavities(self.__points, settings.empty_treshold_or_default())
+        self.__graph = algorithms.find_cavities(np.array(points.points), self.__points, settings)
 
     @property
     def id(self) -> str:
@@ -101,30 +102,23 @@ class Cavities(Module):
                 for value in json.load(points_json)
             ]
 
-        empty_treshold = options.get("--empty-treshold")
-        if empty_treshold is not None:
-            empty_treshold = int(empty_treshold)
-
-        radii_scale = options.get("--radii-scale")
-        if radii_scale is not None:
-            radii_scale = float(radii_scale)
-
-        algorithm_options = Options(
-            empty_treshold=empty_treshold,
-            radii_scale=radii_scale
-        )
-
         run_interactive(
-            CavititesInteractive(points, algorithm_options),
+            CavititesInteractive(points, Options.from_args(options)),
             input_stream,
             output_stream
         )
 
-    def main(self, context: Context) -> Result:
-        options = docopt(__doc__)
+    def main(
+        self,
+        context: Context,
+        argv: Optional[List[str]] = None,
+        input_stream: TextIO = sys.stdin,
+        output_stream: TextIO = sys.stdout
+    ) -> Result:
+        options = docopt(__doc__, argv=argv)
         
         if options.get('interactive'):
-            self.interactive_mode(options)
+            self.interactive_mode(options, input_stream=input_stream, output_stream=output_stream)
             return Result.success()
         
         return Result.not_requested()

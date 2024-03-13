@@ -1,9 +1,11 @@
 import igraph
-from typing import Iterator, List
+from typing import Iterator, Sequence
 
-VertexSeqIndex = List[int]
+VertexSeqIndex = Sequence[int]
 
-class VertexSeq:
+class VertexSeq():
+
+    def __len__(self) -> int: ...
 
     def __getitem__(self, ix: VertexSeqIndex) -> 'VertexSeq': ...
 
