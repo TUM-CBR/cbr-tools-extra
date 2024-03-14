@@ -3,7 +3,7 @@ import numpy as np
 from numpy import float64
 from numpy.typing import NDArray
 from open3d.core import Dtype, Tensor
-from open3d import geometry
+import open3d.geometry as geometry
 from open3d.geometry import PointCloud, Octree, OctreeInternalPointNode, OctreeNode, OctreeNodeInfo
 from open3d.t.geometry import RaycastingScene, TriangleMesh
 from open3d.utility import Vector3dVector
@@ -100,7 +100,7 @@ class FindCavitiesContext(NamedTuple):
             options=options
         )
     
-    def get_backbone_hull(self) -> TriangleMesh:
+    def get_backbone_hull(self) -> geometry.TriangleMesh:
         """We use a simple surface reconstruction to remove the
         empty boxes that reside outside of the protein."""
 

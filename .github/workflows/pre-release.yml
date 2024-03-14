@@ -30,7 +30,12 @@ jobs:
           cache: 'pip' # caching pip dependencies
 
       - run: pip install -r requirements.txt
-      - run: pyinstaller.exe -n cbrtools --collect-all primer3 --collect-all open3d cbrtools.py
+      - run: |
+        pyinstaller.exe -n cbrtools \
+          --collect-all primer3 \
+          --collect-data open3d \
+          --hidden-import open3d \
+          cbrtools.py
 
       - name: Archive Release
         uses: thedoctor0/zip-release@0.7.1

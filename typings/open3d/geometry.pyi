@@ -1,6 +1,6 @@
 from numpy import float64
 from numpy.typing import NDArray
-from typing import Any, Callable, Iterable, List, Optional
+from typing import Any, Callable, Iterable, List, Optional, Tuple
 from open3d.utility import Vector3dVector
 
 class PointCloud:
@@ -12,6 +12,8 @@ class PointCloud:
 
     @points.setter
     def points(self, points: Vector3dVector) -> None: ...
+
+    def compute_convex_hull(self) -> Tuple['TriangleMesh', Any]: ...
 
 class OctreeNode:
     @property
@@ -40,3 +42,10 @@ class Octree:
     def convert_from_point_cloud(self, pcd: PointCloud) -> None: ...
 
     def traverse(self, fn: Callable[[OctreeNode, OctreeNodeInfo], Any]) -> None: ...
+
+class TriangleMesh:
+
+    @classmethod
+    def create_from_point_cloud_alpha_shape(cls, pcd: PointCloud, alpha: float) -> 'TriangleMesh': ...
+
+    def is_watertight(self) -> bool: ...
