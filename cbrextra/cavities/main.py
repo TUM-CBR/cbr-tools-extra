@@ -1,5 +1,5 @@
 """Usage:
-    cbrtools cavities interactive --input-points=<input_points_json> --radii-scale=<radii_scale> --empty-treshold=<empty-treshlod> --max_size_multiplier=<max_size_multiplier>
+    cbrtools cavities interactive --input-points=<input_points_json> [--radii-scale=<radii_scale>] [--empty-treshold=<empty-treshlod>] [--max_size_multiplier=<max_size_multiplier>]
 """
 
 from docopt import docopt

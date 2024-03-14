@@ -150,8 +150,6 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
                 value = InteractiveInput(**json_value)
                 
                 if not self.__handle_input(value):
-                    import sys
-                    print('graceful exit\n\n\n', file=sys.stderr)
                     return
             except json.JSONDecodeError as exn:
                 self.__write_error(
