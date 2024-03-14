@@ -41,9 +41,9 @@ def main():
         result = primers.main(context)
     elif command == 'cascades':
         result = cascade.main(context)
-    elif command == "kinetics":
-        from cbrextra.kinetics.main import module as kinetics
-        result = kinetics.main(context)
+    #elif command == "kinetics":
+    #    from cbrextra.kinetics.main import module as kinetics
+    #    result = kinetics.main(context)
     elif command == "cavities":
         from cbrextra.cavities.main import module as cavities
         result = cavities.main(context)
