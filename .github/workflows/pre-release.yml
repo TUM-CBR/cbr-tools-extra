@@ -31,10 +31,10 @@ jobs:
 
       - run: pip install -r requirements.txt
       - run: |
-          pyinstaller.exe -n cbrtools \
-            --collect-all primer3 \
-            --collect-data open3d \
-            --hidden-import open3d \
+          pyinstaller.exe -n cbrtools `
+            --collect-all primer3 `
+            --collect-data open3d `
+            --hidden-import open3d `
             cbrtools.py
 
       - name: Archive Release
