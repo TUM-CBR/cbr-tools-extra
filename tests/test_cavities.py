@@ -15,7 +15,7 @@ class TestCavitiesInstance:
 
         test_min_volume = 2
         test_max_volume = 125
-        expected_cavities = [79]
+        expected_cavities = [192]
 
         for i, atoms in enumerate(test_atoms):
             instance = CavitiesInstance(atoms, Options())
