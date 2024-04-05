@@ -2,20 +2,42 @@ from cbrextra import testutils
 from cbrextra.cavities.data import FindCavitiesArgs, InteractiveInput, InteractiveOutput, Points
 from cbrextra.cavities.main import CavitiesInstance, CavititesInteractive, Options
 
+from typing import List, NamedTuple
+
+class CavitiesTestSpec(NamedTuple):
+    file : str
+    min_volume: int
+    max_volume: int
+    expected_cavities: List[int]
+
+SPEC_2GVI = CavitiesTestSpec(
+    file="2gvi.atoms.json",
+    min_volume=2,
+    max_volume=125,
+    expected_cavities=[192]
+)
+
+SPEC_5B08_A = CavitiesTestSpec(
+    file="5b08.chainA.atoms.json",
+    min_volume=2,
+    max_volume=125,
+    expected_cavities=[125]
+)
+
 class TestCavitiesInstance:
 
-    def test_get_cavitites(self):
+    def __get_cavitites(self, spec: CavitiesTestSpec):
 
         test_atoms = testutils.open_models(
             Points,
             __file__,
             "cavities",
-            "2gvi.atoms.json"
+            spec.file
         )
 
-        test_min_volume = 2
-        test_max_volume = 125
-        expected_cavities = [79]
+        test_min_volume = spec.min_volume
+        test_max_volume = spec.max_volume
+        expected_cavities = spec.expected_cavities
 
         for i, atoms in enumerate(test_atoms):
             instance = CavitiesInstance(atoms, Options())
@@ -32,6 +54,16 @@ class TestCavitiesInstance:
 
                 assert volume >= test_min_volume, "Got a cavity with volume below than minimum treshold"
                 assert volume <= test_max_volume, "Got a cavity with volume above maximum treshold"
+
+    def test_get_cavitites(self):
+
+        test_specs = [
+            SPEC_2GVI,
+            SPEC_5B08_A
+        ]
+
+        for test_spec in test_specs:
+            self.__get_cavitites(test_spec)
 
 class TestCavitiesInteractive:
 

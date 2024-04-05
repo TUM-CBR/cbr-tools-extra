@@ -111,11 +111,17 @@ class FindCavitiesContext(NamedTuple):
         # We try to use alpha shape with increments of 0.5 until
         # we get a watertight convex hull or we hit an alpha
         # of 10
-        for i in range(5,100,5):
+        for i in range(1,100):
             alpha = i/10
             try:
                 backbone_hull = geometry.TriangleMesh.create_from_point_cloud_alpha_shape(backbone_pc, alpha)
-                if backbone_hull.is_watertight():
+
+                # Alpha-shapes can be watertight while not engulfing the full structure. To avoid those
+                # shapes, we require that the volume of the mesh is sufficient. In principle, it should
+                # be in line with the volume of the structure, however, invalid shapes tend to have a
+                # very small volume, so we simply require that the volume is larger than the number
+                # of points divided by 10.
+                if backbone_hull.is_watertight() and backbone_hull.get_volume() >= len(self.backbone) / 10:
                     return backbone_hull
             except Exception:
                 # Todo: there seems to be a bug in Open3d which sometimes causes alpha_shape
