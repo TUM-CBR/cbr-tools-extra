@@ -15,6 +15,12 @@ K_POSITION = 'position'
 K_RESIDUE = 'residue'
 K_POSITION_1 = K_POSITION + LSUFFIX
 K_POSITION_2 = K_POSITION + RSUFFIX
+K_RESIDUE_1 = K_RESIDUE + LSUFFIX
+K_RESIDUE_2 = K_RESIDUE + RSUFFIX
+K_OCCURRENCE_COUNT = 'occurence count'
+K_OCCURENCE_SINGLE_COUNT = 'occurence single count'
+K_OCCURRENCE_SCORE = 'occurrence'
+K_EXLUSIVITY_SCORE = 'exclusivity'
 
 class CoEvolutionAnalysis(NamedTuple):
     """
@@ -62,5 +68,63 @@ class CoEvolutionAnalysis(NamedTuple):
             }
         )
 
-        msa_df = pd.merge(msa_df, msa_df, how='outer', suffixes=[LSUFFIX, RSUFFIX], 
-        msa_df = msa_df[msa_df[K_POSITION_1] != msa_df[K_POSITION_2]]
+        msa_df = pd.merge(msa_df, msa_df, how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE])
+
+        return CoEvolutionAnalysis(
+            alignment = alignment,
+            data = msa_df[msa_df[K_POSITION_1] != msa_df[K_POSITION_2]]
+        )
+    
+    def score_positions(
+        self,
+        positions: List[int],
+        center: float
+    ):
+        """
+        Query the co-evolution analysis using the correlated occurence of the
+        residues at the positions provided with residues in any other positions
+        of the sequence alignment
+        """
+
+        assert len(positions) > 0, "Position has to be provided to query."
+
+        position = positions[0]
+        data = self.data
+        mask = data[K_POSITION_1] == position
+
+        for position in positions[1:]:
+            mask |= data[K_POSITION_1]  == position
+
+        data = data[mask]
+        pair_counts = data.groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1, K_RESIDUE_2]).count()
+        pair_counts_index = pair_counts.index.to_frame(index=False)
+        single_counts = data.groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1]).count()
+        single_counts_index = single_counts.index.to_frame(index=False)
+
+        result = pd.DataFrame(
+            data = {
+                K_POSITION_1: pair_counts_index[K_POSITION_1],
+                K_POSITION_2: pair_counts_index[K_POSITION_2],
+                K_RESIDUE_1: pair_counts_index[K_RESIDUE_1],
+                K_RESIDUE_2: pair_counts_index[K_RESIDUE_2],
+                K_OCCURRENCE_COUNT: pair_counts[K_SEQUENCE]
+            }
+        )
+
+        result = pd.merge(
+            result,
+            pd.DataFrame(
+                data = {
+                    K_POSITION_1: single_counts_index[K_POSITION_1],
+                    K_POSITION_2: single_counts_index[K_POSITION_2],
+                    K_RESIDUE_1: single_counts_index[K_RESIDUE_1],
+                    K_OCCURENCE_SINGLE_COUNT: single_counts[K_OCCURENCE_SINGLE_COUNT]
+                }
+            ),
+            on=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1],
+            how='left'
+        )
+
+        result[K_OCCURRENCE_SCORE] = result[K_OCCURRENCE_COUNT] / len(self.alignment)
+        result[K_EXLUSIVITY_SCORE] = result[K_OCCURRENCE_SCORE] / result[K_OCCURENCE_SINGLE_COUNT]
+

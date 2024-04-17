@@ -20,4 +20,4 @@ class CoevolutionInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput
         return args.value.model_dump()
     
     def on_message(self, args: OnMessageArgs[InteractiveInput, InteractiveOutput]) -> None:
-        return super().on_message(args)
+        pass
