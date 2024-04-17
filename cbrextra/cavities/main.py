@@ -8,9 +8,7 @@ import numpy as np
 import sys
 from typing import Any, Dict, TextIO
 
-from cbrextra.cavities.data import InteractiveInput
-from cbrextra.core.interactive.shared import ParseMessageArgs, SerializeMessageArgs
-
+from ..core.interactive.shared import ParseMessageArgs, SerializeMessageArgs
 from ..core.interactive import *
 from ..core.interactive.shared import OnMessageArgs
 from ..core.module import Context, Module, Result
