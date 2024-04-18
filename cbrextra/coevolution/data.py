@@ -20,7 +20,6 @@ class Scoring(BaseModel):
 class Query(BaseModel):
     positions: List[int]
     max_results: int
-    scoring_args: Dict[Any, Any]
     scoring: Scoring = Scoring()
 
 class InteractiveInput(BaseModel):
