@@ -6,7 +6,6 @@ from Bio.Align import MultipleSeqAlignment
 from Bio import AlignIO
 from docopt import docopt
 from typing import Dict
-import json
 import sys
 from typing import cast, TextIO
 
@@ -15,9 +14,9 @@ from ..core.interactive.shared import OnMessageArgs, ParseMessageArgs, Serialize
 from ..core.module import Context, Module, Result
 
 from .algorithms import CoEvolutionAnalysis
-from .data import CoevolutionResults, InteractiveInput, InteractiveOutput, Query
+from .data import CoevolutionResults, InteractiveRequest, InteractiveResponse, Query
 
-class CoevolutionInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput]):
+class CoevolutionInteractive(InteractiveSpec[InteractiveRequest, InteractiveResponse]):
 
     def __init__(
         self,
@@ -27,10 +26,10 @@ class CoevolutionInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput
 
         self.__coevolution = CoEvolutionAnalysis.create(alignment)
 
-    def parse_message(self, args: ParseMessageArgs[InteractiveInput, InteractiveOutput]) -> InteractiveInput:
-        return InteractiveInput(**args.payload)
+    def parse_message(self, args: ParseMessageArgs[InteractiveRequest, InteractiveResponse]) -> InteractiveRequest:
+        return InteractiveRequest(**args.payload)
     
-    def serialize_message(self, args: SerializeMessageArgs[InteractiveInput, InteractiveOutput]) -> Dict[Any, Any]:
+    def serialize_message(self, args: SerializeMessageArgs[InteractiveRequest, InteractiveResponse]) -> Dict[Any, Any]:
         return args.value.model_dump()
     
     def __handle_query(self, query: Query) -> CoevolutionResults:
@@ -40,13 +39,13 @@ class CoevolutionInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput
             query.scoring
         )
 
-    def on_message(self, args: OnMessageArgs[InteractiveInput, InteractiveOutput]) -> None:
+    def on_message(self, args: OnMessageArgs[InteractiveRequest, InteractiveResponse]) -> None:
 
         message = args.message
 
         if message.query is not None:
             args.send(
-                InteractiveOutput(coevolution=self.__handle_query(message.query))
+                InteractiveResponse(coevolution=self.__handle_query(message.query))
             )
         else:
             raise ValueError("Message contains no requests.")

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 K_OCCURRENCE_SCORE = 'occurrence'
 K_EXLUSIVITY_SCORE = 'exclusivity'
@@ -22,7 +22,7 @@ class Query(BaseModel):
     max_results: int
     scoring: Scoring = Scoring()
 
-class InteractiveInput(BaseModel):
+class InteractiveRequest(BaseModel):
     query: Optional[Query]
 
 class CoevolutionEntry(BaseModel):
@@ -40,5 +40,5 @@ class CoevolutionPosition(BaseModel):
 class CoevolutionResults(BaseModel):
     positions: Dict[int, CoevolutionPosition]
 
-class InteractiveOutput(BaseModel):
+class InteractiveResponse(BaseModel):
     coevolution: Optional[CoevolutionResults]
