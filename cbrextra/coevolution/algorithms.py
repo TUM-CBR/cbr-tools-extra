@@ -13,8 +13,8 @@ RESIDUE_TO_INT = {
 IGAP = -1
 RESIDUE_TO_INT['-'] = IGAP
 
-LSUFFIX = '_seq1'
-RSUFFIX = '_seq2'
+LSUFFIX = '_res1'
+RSUFFIX = '_res2'
 K_SEQUENCE = 'sequence'
 K_POSITION = 'position'
 K_RESIDUE = 'residue'
@@ -64,6 +64,7 @@ class CoEvolutionAnalysis(NamedTuple):
                 sequence[i] = seq_id
                 position[i] =  pos
                 residue[i] = RESIDUE_TO_INT[res.upper()]
+                i += 1
 
         msa_df = pd.DataFrame(
             data = {
@@ -73,11 +74,9 @@ class CoEvolutionAnalysis(NamedTuple):
             }
         )
 
-        msa_df = pd.merge(msa_df, msa_df, how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE])
-
         return CoEvolutionAnalysis(
             alignment = alignment,
-            data = msa_df[msa_df[K_POSITION_1] != msa_df[K_POSITION_2]]
+            data = msa_df
         )
     
     @classmethod
@@ -96,11 +95,10 @@ class CoEvolutionAnalysis(NamedTuple):
             or residue pairs relative to the total.
         """
 
-        series =  result[K_OCCURRENCE_SCORE]
-        series = (1 - series)
-        low_mask  = (series <= 0.5) * 1
-        series = (series * low_mask)  + (low_mask * 0.5)
-        return series * 2
+        series = result[K_OCCURRENCE_SCORE]
+        low_mask = result[K_OCCURRENCE_SCORE] > 0.5
+        penalty = float(2)*(series - float(0.5)) * low_mask
+        return float(1) - penalty
         
     def score_occurence(self, result: pd.DataFrame) ->  'pd.Series[float]':
         """
@@ -117,6 +115,51 @@ class CoEvolutionAnalysis(NamedTuple):
 
         return result[K_OCCURRENCE_COUNT] / len(self.alignment)
     
+    def score_symmetry(self, result: pd.DataFrame) -> 'pd.Series[float]':
+
+        res_1 = result[K_RESIDUE_1].to_numpy()
+        pos_1 = result[K_POSITION_1].to_numpy()
+
+        res_2 = result[K_RESIDUE_2].to_numpy()
+        pos_2  = result[K_POSITION_2].to_numpy()
+
+        occurrence = result[K_OCCURRENCE_SCORE]
+
+        K_LEFT = "occurrence left"
+        K_RIGHT = "occurrence right"
+
+        compare_df = pd.merge(
+            pd.DataFrame(
+                data={
+                    K_RESIDUE_1: res_1,
+                    K_POSITION_1: pos_1,
+                    K_RESIDUE_2: res_2,
+                    K_POSITION_2: pos_2,
+                    K_LEFT: occurrence
+                }
+            ),
+            pd.DataFrame(
+                data={
+                    K_RESIDUE_1: res_2,
+                    K_POSITION_1: pos_1,
+                    K_RESIDUE_2: res_1,
+                    K_POSITION_2: pos_2,
+                    K_RIGHT: occurrence
+                }
+            ),
+            how='left',
+            on=[K_RESIDUE_1, K_POSITION_1, K_RESIDUE_2, K_POSITION_2]
+        ).fillna({
+            K_LEFT: 0,
+            K_RIGHT: 0
+        })
+
+        left = compare_df[K_LEFT]
+        right = compare_df[K_RIGHT]
+        score = float(1) - ((left - right).abs() / (left + right))
+
+        return score
+
     @classmethod
     def score_exclusivity(cls, result: pd.DataFrame) -> 'pd.Series[float]':
         """
@@ -137,6 +180,26 @@ class CoEvolutionAnalysis(NamedTuple):
             of the first residue of the pair paired with any other residue.
         """
         return result[K_OCCURRENCE_COUNT] / result[K_OCCURENCE_SINGLE_COUNT]
+    
+    def __get_paired_dataframe(self, positions: List[int]) -> pd.DataFrame:
+        """
+        Construct the DataFrame that contains the positions of interest paired
+        with every other position in the alignment (except itself).
+        """
+        if len(positions) < 1:
+            raise ValueError(f"{positions}: The length must be at least 1.")
+        
+
+        position = positions[0]
+        data = self.data
+        mask = data[K_POSITION] == position
+
+        for position in positions[1:]:
+            mask |= data[K_POSITION] == position
+
+        data = pd.merge(data[mask], data, how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE])
+
+        return data[data[K_POSITION_1] != data[K_POSITION_2]]
 
     def score_positions(
         self,
@@ -149,30 +212,22 @@ class CoEvolutionAnalysis(NamedTuple):
         of the sequence alignment.
         """
 
-        if len(positions) < 1:
-            raise ValueError(f"{positions}: The length must be at least 1.")
-
-        position = positions[0]
-        data = self.data
-        mask = data[K_POSITION_1] == position
-
-        for position in positions[1:]:
-            mask |= data[K_POSITION_1] == position
-
-        data = data[mask]
-        mask_gaps = (data[K_POSITION_1] == IGAP) | (data[K_POSITION_2] == IGAP)
-        pair_counts = data[mask_gaps].groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1, K_RESIDUE_2]).count()
+        data =  self.__get_paired_dataframe(positions)
+        mask_gaps = (data[K_RESIDUE_1] != IGAP) & (data[K_RESIDUE_2] != IGAP)
+        mask_same = (data[K_RESIDUE_1] != data[K_RESIDUE_2])
+        mask_for_pairs = mask_gaps & mask_same
+        pair_counts = data[mask_for_pairs].groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1, K_RESIDUE_2]).count()
         pair_counts_index = pair_counts.index.to_frame(index=False)
         single_counts = data.groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1]).count()
         single_counts_index = single_counts.index.to_frame(index=False)
 
         result = pd.DataFrame(
             data = {
-                K_POSITION_1: pair_counts_index[K_POSITION_1],
-                K_POSITION_2: pair_counts_index[K_POSITION_2],
-                K_RESIDUE_1: pair_counts_index[K_RESIDUE_1],
-                K_RESIDUE_2: pair_counts_index[K_RESIDUE_2],
-                K_OCCURRENCE_COUNT: pair_counts[K_SEQUENCE]
+                K_POSITION_1: pair_counts_index[K_POSITION_1].to_numpy(),
+                K_POSITION_2: pair_counts_index[K_POSITION_2].to_numpy(),
+                K_RESIDUE_1: pair_counts_index[K_RESIDUE_1].to_numpy(),
+                K_RESIDUE_2: pair_counts_index[K_RESIDUE_2].to_numpy(),
+                K_OCCURRENCE_COUNT: pair_counts[K_SEQUENCE].to_numpy()
             }
         )
 
@@ -180,10 +235,10 @@ class CoEvolutionAnalysis(NamedTuple):
             result,
             pd.DataFrame(
                 data = {
-                    K_POSITION_1: single_counts_index[K_POSITION_1],
-                    K_POSITION_2: single_counts_index[K_POSITION_2],
-                    K_RESIDUE_1: single_counts_index[K_RESIDUE_1],
-                    K_OCCURENCE_SINGLE_COUNT: single_counts[K_OCCURENCE_SINGLE_COUNT]
+                    K_POSITION_1: single_counts_index[K_POSITION_1].to_numpy(),
+                    K_POSITION_2: single_counts_index[K_POSITION_2].to_numpy(),
+                    K_RESIDUE_1: single_counts_index[K_RESIDUE_1].to_numpy(),
+                    K_OCCURENCE_SINGLE_COUNT: single_counts[K_SEQUENCE].to_numpy()
                 }
             ),
             on=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1],
@@ -193,18 +248,20 @@ class CoEvolutionAnalysis(NamedTuple):
         result[K_OCCURRENCE_SCORE] = score_occurence = self.score_occurence(result)
         result[K_EXLUSIVITY_SCORE] = score_exclusivity = result[K_OCCURRENCE_SCORE] / result[K_OCCURENCE_SINGLE_COUNT]
         result[K_CONSERVED_SCORE] = score_conserved = self.score_conserved(result)
+        result[K_SYMMETRY_SCORE] = score_symmetry = self.score_symmetry(result)
         result[K_SCORE_ALL] = (
             scoring.occurence_weight * score_occurence
             + scoring.exclusivity_weight * score_exclusivity
             + scoring.conserved_weight * score_conserved
-        ) / 3
+            + scoring.symmetry_weight * score_symmetry
+        ) / (scoring.occurence_weight + scoring.exclusivity_weight + scoring.conserved_weight + scoring.symmetry_weight)
 
         return result
     
     @classmethod
     def __to_position_result(cls, ranked_position_scores: pd.DataFrame) -> CoevolutionPosition:
         positions: 'pd.Series[int]' = ranked_position_scores[K_POSITION_1] 
-        position = positions[0]
+        position = positions.iat[0]
 
         if not (positions == position).all():
             raise ValueError()
@@ -217,6 +274,7 @@ class CoEvolutionAnalysis(NamedTuple):
         score_occurence: 'pd.Series[float]' = ranked_position_scores[K_OCCURRENCE_SCORE]
         score_exclusivity: 'pd.Series[float]' = ranked_position_scores[K_EXLUSIVITY_SCORE]
         score_conserved: 'pd.Series[float]' = ranked_position_scores[K_CONSERVED_SCORE]
+        score_symmetry: 'pd.Series[float]' = ranked_position_scores[K_SYMMETRY_SCORE]
 
         return CoevolutionPosition(
             position = position,
@@ -227,7 +285,8 @@ class CoEvolutionAnalysis(NamedTuple):
                     score=scores[i],
                     score_occurence=score_occurence[i],
                     score_exclusivity=score_exclusivity[i],
-                    score_conserved=score_conserved[i]
+                    score_conserved=score_conserved[i],
+                    score_symmetry=score_symmetry[i]
                 )
                 for i in cast(Iterable[int], ranked_position_scores.index)
             }

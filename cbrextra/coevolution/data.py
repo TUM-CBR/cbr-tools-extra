@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 K_OCCURRENCE_SCORE = 'occurrence'
 K_EXLUSIVITY_SCORE = 'exclusivity'
 K_CONSERVED_SCORE = 'conserved'
+K_SYMMETRY_SCORE = 'symmetry'
 
 class Scoring(BaseModel):
     """
@@ -16,6 +17,7 @@ class Scoring(BaseModel):
     occurence_weight: float = 1
     exclusivity_weight: float = 1
     conserved_weight: float = 1
+    symmetry_weight: float = 1
 
 class Query(BaseModel):
     positions: List[int]
@@ -32,6 +34,7 @@ class CoevolutionEntry(BaseModel):
     score_occurence: float
     score_exclusivity: float
     score_conserved: float
+    score_symmetry: float
 
 class CoevolutionPosition(BaseModel):
     position: int
