@@ -81,3 +81,5 @@ class Coevolution(Module):
             return Result.success()
         
         return Result.not_requested()
+    
+module = Coevolution()

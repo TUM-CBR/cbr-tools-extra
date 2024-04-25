@@ -10,6 +10,9 @@ RESIDUE_TO_INT = {
     for i,res in enumerate(protein_letters)
 }
 
+IGAP = -1
+RESIDUE_TO_INT['-'] = IGAP
+
 LSUFFIX = '_seq1'
 RSUFFIX = '_seq2'
 K_SEQUENCE = 'sequence'
@@ -56,8 +59,8 @@ class CoEvolutionAnalysis(NamedTuple):
         residue: List[Optional[int]] = [None for _ in range(size)]
         i = 0
 
-        for seq_id, sequence in enumerate(alignment):
-            for (pos, res) in enumerate(sequence._seq):
+        for seq_id, seq_record in enumerate(alignment):
+            for (pos, res) in enumerate(seq_record._seq):
                 sequence[i] = seq_id
                 position[i] =  pos
                 residue[i] = RESIDUE_TO_INT[res.upper()]
@@ -78,7 +81,7 @@ class CoEvolutionAnalysis(NamedTuple):
         )
     
     @classmethod
-    def score_conserved(cls, result: pd.DataFrame) -> pd.Series[float]:
+    def score_conserved(cls, result: pd.DataFrame) -> 'pd.Series[float]':
         """
         This scoring amis to exclude positions where residues are simply
         always conserved. These are potenitally important relations but
@@ -99,7 +102,7 @@ class CoEvolutionAnalysis(NamedTuple):
         series = (series * low_mask)  + (low_mask * 0.5)
         return series * 2
         
-    def score_occurence(self, result: pd.DataFrame) ->  pd.Series[float]:
+    def score_occurence(self, result: pd.DataFrame) ->  'pd.Series[float]':
         """
         This function scores the occurence of a specific pair of residues relative
         to the total number of sequences in the alignment.
@@ -115,7 +118,7 @@ class CoEvolutionAnalysis(NamedTuple):
         return result[K_OCCURRENCE_COUNT] / len(self.alignment)
     
     @classmethod
-    def score_exclusivity(cls, result: pd.DataFrame) -> pd.Series[float]:
+    def score_exclusivity(cls, result: pd.DataFrame) -> 'pd.Series[float]':
         """
         This scoring aims to capture how often does this specifi residue
         pairs occurs relative to the first residue of the pair occuring
@@ -157,7 +160,8 @@ class CoEvolutionAnalysis(NamedTuple):
             mask |= data[K_POSITION_1] == position
 
         data = data[mask]
-        pair_counts = data.groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1, K_RESIDUE_2]).count()
+        mask_gaps = (data[K_POSITION_1] == IGAP) | (data[K_POSITION_2] == IGAP)
+        pair_counts = data[mask_gaps].groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1, K_RESIDUE_2]).count()
         pair_counts_index = pair_counts.index.to_frame(index=False)
         single_counts = data.groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1]).count()
         single_counts_index = single_counts.index.to_frame(index=False)
@@ -199,20 +203,20 @@ class CoEvolutionAnalysis(NamedTuple):
     
     @classmethod
     def __to_position_result(cls, ranked_position_scores: pd.DataFrame) -> CoevolutionPosition:
-        positions: pd.Series[int] = ranked_position_scores[K_POSITION_1] 
+        positions: 'pd.Series[int]' = ranked_position_scores[K_POSITION_1] 
         position = positions[0]
 
         if not (positions == position).all():
             raise ValueError()
 
 
-        positions_2: pd.Series[int] = ranked_position_scores[K_POSITION_2]
-        residues_1: pd.Series[int] = ranked_position_scores[K_RESIDUE_1]
-        residues_2: pd.Series[int] = ranked_position_scores[K_RESIDUE_2]
-        scores: pd.Series[float] = ranked_position_scores[K_SCORE_ALL]
-        score_occurence: pd.Series[float] = ranked_position_scores[K_OCCURRENCE_SCORE]
-        score_exclusivity: pd.Series[float] = ranked_position_scores[K_EXLUSIVITY_SCORE]
-        score_conserved: pd.Series[float] = ranked_position_scores[K_CONSERVED_SCORE]
+        positions_2: 'pd.Series[int]' = ranked_position_scores[K_POSITION_2]
+        residues_1: 'pd.Series[int]' = ranked_position_scores[K_RESIDUE_1]
+        residues_2: 'pd.Series[int]' = ranked_position_scores[K_RESIDUE_2]
+        scores: 'pd.Series[float]' = ranked_position_scores[K_SCORE_ALL]
+        score_occurence: 'pd.Series[float]' = ranked_position_scores[K_OCCURRENCE_SCORE]
+        score_exclusivity: 'pd.Series[float]' = ranked_position_scores[K_EXLUSIVITY_SCORE]
+        score_conserved: 'pd.Series[float]' = ranked_position_scores[K_CONSERVED_SCORE]
 
         return CoevolutionPosition(
             position = position,

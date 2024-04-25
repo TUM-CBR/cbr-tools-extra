@@ -47,6 +47,9 @@ def main():
     elif command == "cavities":
         from cbrextra.cavities.main import module as cavities
         result = cavities.main(context)
+    elif command == "coevolution":
+        from cbrextra.coevolution.main import module as coevolution
+        result = coevolution.main(context)
 
     if result is None or not result.is_success:
         print(docopt(__doc__), file=stderr)

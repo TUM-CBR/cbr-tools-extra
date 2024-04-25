@@ -8,7 +8,7 @@
         "reportMissingTypeStubs": "warning"
     },
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/typings"
+        "${workspaceFolder}/python-typings"
     ],
     "python.testing.pytestArgs": [
         "tests"
