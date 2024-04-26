@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 
 K_OCCURRENCE_SCORE = 'occurrence'
 K_EXLUSIVITY_SCORE = 'exclusivity'
-K_CONSERVED_SCORE = 'conserved'
+K_CONFIDENCE_SCORE = 'confidence'
 K_SYMMETRY_SCORE = 'symmetry'
 
 class Scoring(BaseModel):
@@ -14,10 +14,25 @@ class Scoring(BaseModel):
     provided here.
     """
 
-    occurence_weight: float = 1
     exclusivity_weight: float = 1
-    conserved_weight: float = 1
+    confidence_weight: float = 1
     symmetry_weight: float = 1
+
+    @property
+    def __combined(self):
+        return sum([self.exclusivity_weight, self.confidence_weight, self.symmetry_weight])
+    
+    @property
+    def exclusivity_weight_scaled(self) -> float:
+        return self.exclusivity_weight / self.__combined
+    
+    @property
+    def confidence_weight_scaled(self) -> float:
+        return self.confidence_weight / self.__combined
+    
+    @property
+    def symmetry_weight_scaled(self) -> float:
+        return self.symmetry_weight / self.__combined
 
 class Query(BaseModel):
     positions: List[int]
@@ -33,7 +48,7 @@ class CoevolutionEntry(BaseModel):
     score: float
     score_occurence: float
     score_exclusivity: float
-    score_conserved: float
+    score_confidence: float
     score_symmetry: float
 
 class CoevolutionPosition(BaseModel):

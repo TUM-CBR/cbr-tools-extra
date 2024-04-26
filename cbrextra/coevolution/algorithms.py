@@ -1,5 +1,6 @@
 from Bio.Align import MultipleSeqAlignment
 from Bio.Data.IUPACData import protein_letters
+import numpy as np
 import pandas as pd
 from typing import cast, Iterable, List, NamedTuple, Optional
 
@@ -80,13 +81,17 @@ class CoEvolutionAnalysis(NamedTuple):
         )
     
     @classmethod
-    def score_conserved(cls, result: pd.DataFrame) -> 'pd.Series[float]':
+    def score_confidence(cls, result: pd.DataFrame) -> 'pd.Series[float]':
         """
-        This scoring amis to exclude positions where residues are simply
-        always conserved. These are potenitally important relations but
-        not for the purpose of co-evolution. The idea is that the closer
-        the residue pair is to being fully conserved accross the whole
-        set of sequences, the more the pair gets penalized.
+        This function scores how much confidence one can have on the results of
+        the analysis. The idea is that if the coevolving pair occurs too little
+        or too much, it might simply mean that either it is a fluke or just a
+        case of positions that are always conserved.
+
+        A normal distribution is used as a base for this scoring, however, it
+        is used differently. The mean is centered at 0.5 and f(0.5) = 1. Then
+        it decays as usual such that 0 and 1 reside at 4 standard deviations
+        away from the mean.
 
         Parameters
         ----------
@@ -96,9 +101,8 @@ class CoEvolutionAnalysis(NamedTuple):
         """
 
         series = result[K_OCCURRENCE_SCORE]
-        low_mask = result[K_OCCURRENCE_SCORE] > 0.5
-        penalty = float(2)*(series - float(0.5)) * low_mask
-        return float(1) - penalty
+
+        return np.exp(-0.5  * np.power((4*series - 2), 2)) / (0.4*np.sqrt(2*np.pi))
         
     def score_occurence(self, result: pd.DataFrame) ->  'pd.Series[float]':
         """
@@ -158,7 +162,11 @@ class CoEvolutionAnalysis(NamedTuple):
         right = compare_df[K_RIGHT]
         score = float(1) - ((left - right).abs() / (left + right))
 
-        return score
+        occurrence = result[K_OCCURRENCE_SCORE]
+
+        # The final score is weighted by the occurrence as a co-evolving pair
+        # That has little occurence is not interesting
+        return score * occurrence
 
     @classmethod
     def score_exclusivity(cls, result: pd.DataFrame) -> 'pd.Series[float]':
@@ -245,16 +253,15 @@ class CoEvolutionAnalysis(NamedTuple):
             how='left'
         )
 
-        result[K_OCCURRENCE_SCORE] = score_occurence = self.score_occurence(result)
-        result[K_EXLUSIVITY_SCORE] = score_exclusivity = result[K_OCCURRENCE_SCORE] / result[K_OCCURENCE_SINGLE_COUNT]
-        result[K_CONSERVED_SCORE] = score_conserved = self.score_conserved(result)
+        result[K_OCCURRENCE_SCORE] = self.score_occurence(result)
+        result[K_EXLUSIVITY_SCORE] = score_exclusivity = self.score_exclusivity(result)
+        result[K_CONFIDENCE_SCORE] = score_confidence = self.score_confidence(result)
         result[K_SYMMETRY_SCORE] = score_symmetry = self.score_symmetry(result)
         result[K_SCORE_ALL] = (
-            scoring.occurence_weight * score_occurence
-            + scoring.exclusivity_weight * score_exclusivity
-            + scoring.conserved_weight * score_conserved
-            + scoring.symmetry_weight * score_symmetry
-        ) / (scoring.occurence_weight + scoring.exclusivity_weight + scoring.conserved_weight + scoring.symmetry_weight)
+            + scoring.exclusivity_weight_scaled * score_exclusivity
+            + scoring.confidence_weight_scaled * score_confidence
+            + scoring.symmetry_weight_scaled * score_symmetry
+        )
 
         return result
     
@@ -273,7 +280,7 @@ class CoEvolutionAnalysis(NamedTuple):
         scores: 'pd.Series[float]' = ranked_position_scores[K_SCORE_ALL]
         score_occurence: 'pd.Series[float]' = ranked_position_scores[K_OCCURRENCE_SCORE]
         score_exclusivity: 'pd.Series[float]' = ranked_position_scores[K_EXLUSIVITY_SCORE]
-        score_conserved: 'pd.Series[float]' = ranked_position_scores[K_CONSERVED_SCORE]
+        score_confidence: 'pd.Series[float]' = ranked_position_scores[K_CONFIDENCE_SCORE]
         score_symmetry: 'pd.Series[float]' = ranked_position_scores[K_SYMMETRY_SCORE]
 
         return CoevolutionPosition(
@@ -285,7 +292,7 @@ class CoEvolutionAnalysis(NamedTuple):
                     score=scores[i],
                     score_occurence=score_occurence[i],
                     score_exclusivity=score_exclusivity[i],
-                    score_conserved=score_conserved[i],
+                    score_confidence=score_confidence[i],
                     score_symmetry=score_symmetry[i]
                 )
                 for i in cast(Iterable[int], ranked_position_scores.index)
