@@ -220,7 +220,7 @@ class CoEvolutionAnalysis(NamedTuple):
         of the sequence alignment.
         """
 
-        data =  self.__get_paired_dataframe(positions)
+        data = self.__get_paired_dataframe(positions)
         mask_gaps = (data[K_RESIDUE_1] != IGAP) & (data[K_RESIDUE_2] != IGAP)
         mask_same = (data[K_RESIDUE_1] != data[K_RESIDUE_2])
         mask_for_pairs = mask_gaps & mask_same
@@ -311,7 +311,7 @@ class CoEvolutionAnalysis(NamedTuple):
             position : self.__to_position_result(score)
             for position in positions
             for score in [scores[scores[K_POSITION_1] == position]]
-            for ranks in [score[K_SCORE_ALL].rank(ascending=False)]
+            for ranks in [score[K_SCORE_ALL].rank(ascending=False, method='first')]
             for score in [score[ranks <= results_per_position]]
         }
 

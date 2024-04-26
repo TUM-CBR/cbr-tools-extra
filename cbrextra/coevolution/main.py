@@ -59,7 +59,7 @@ class Coevolution(Module):
         output_stream: TextIO = sys.stdout
     ):
         
-        msa = AlignIO.read(options['--input-points'], format='fasta')
+        msa = AlignIO.read(options['--input-msa'], format='fasta')
 
         run_interactive(
             CoevolutionInteractive(cast(MultipleSeqAlignment, msa)),

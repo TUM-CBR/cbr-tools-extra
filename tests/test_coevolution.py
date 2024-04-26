@@ -18,43 +18,49 @@ class CoevolutionTestSpec(NamedTuple):
         return AlignIO.read(file, format='fasta')
 
 
-SPEC_FORMYL_TRANSFERASE = CoevolutionTestSpec(
-    alignment_file="FormylTransferase.aln.fasta"
-)
+TEST_SPECS = [
+    CoevolutionTestSpec(
+        alignment_file="Test1.aln.fasta"
+    ),
+    CoevolutionTestSpec(
+        alignment_file="Test2.aln.fasta"
+    )
+]
 
 class TestCoevolution:
 
     def test_open_alignment(self):
 
-        spec = SPEC_FORMYL_TRANSFERASE
+        for spec in TEST_SPECS:
 
-        msa = spec.open_alignment()
-        analysis = CoEvolutionAnalysis.create(msa)
+            msa = spec.open_alignment()
+            analysis = CoEvolutionAnalysis.create(msa)
 
-        pos = 123
-        seq = 123
+            pos = 123
+            seq = 123
 
-        data = analysis.data
-        record = data[(data[K_POSITION] == pos) & (data[K_SEQUENCE] == seq)]
-        expected_resi = RESIDUE_TO_INT[msa[seq]._seq[pos].upper()]
-        actual_resi = list(cast(Any, record[K_RESIDUE]))[0]
+            data = analysis.data
+            record = data[(data[K_POSITION] == pos) & (data[K_SEQUENCE] == seq)]
+            expected_resi = RESIDUE_TO_INT[msa[seq]._seq[pos].upper()]
+            actual_resi = list(cast(Any, record[K_RESIDUE]))[0]
 
-        assert expected_resi == actual_resi
+            assert expected_resi == actual_resi
 
     def test_score_alignment(self):
-        spec = SPEC_FORMYL_TRANSFERASE
-        
-        msa = spec.open_alignment()
-        analysis = CoEvolutionAnalysis.create(msa)
 
-        position = 77
-        results_per_position = 30
+        for spec in TEST_SPECS:
+            
+            msa = spec.open_alignment()
+            analysis = CoEvolutionAnalysis.create(msa)
+
+            position = 71
+            results_per_position = 20
 
 
-        scores = analysis.query_scores(
-            [position],
-            results_per_position=results_per_position,
-            scoring=Scoring()
-        )
+            scores = analysis.query_scores(
+                [position],
+                results_per_position=results_per_position,
+                scoring=Scoring()
+            )
 
-        assert True
+            assert True
