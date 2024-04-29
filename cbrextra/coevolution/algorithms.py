@@ -10,6 +10,7 @@ RESIDUE_TO_INT = {
     res: i
     for i,res in enumerate(protein_letters)
 }
+TOTAL_RESIDUES = len(protein_letters)
 
 IGAP = -1
 RESIDUE_TO_INT['-'] = IGAP
@@ -25,6 +26,8 @@ K_RESIDUE_1 = K_RESIDUE + LSUFFIX
 K_RESIDUE_2 = K_RESIDUE + RSUFFIX
 K_OCCURRENCE_COUNT = 'occurence count'
 K_OCCURENCE_SINGLE_COUNT = 'occurence single count'
+K_OCCURENCE_SINGLE_COUNT_1 = K_OCCURENCE_SINGLE_COUNT + LSUFFIX
+K_OCCURENCE_SINGLE_COUNT_2 = K_OCCURENCE_SINGLE_COUNT + RSUFFIX
 K_HETEROGENEITY_SCORE = "occurence heterogeneity"
 K_SCORE_ALL = "score"
 
@@ -80,18 +83,13 @@ class CoEvolutionAnalysis(NamedTuple):
             data = msa_df
         )
     
-    @classmethod
-    def score_confidence(cls, result: pd.DataFrame) -> 'pd.Series[float]':
+    def score_confidence(self, treshold: float, result: pd.DataFrame) -> 'pd.Series[float]':
         """
         This function scores how much confidence one can have on the results of
-        the analysis. The idea is that if the coevolving pair occurs too little
-        or too much, it might simply mean that either it is a fluke or just a
-        case of positions that are always conserved.
+        the analysis. The idea is that positions with too much or too little
+        overall conservation are less reliable than positions with a modest
+        degree of conservation.
 
-        A normal distribution is used as a base for this scoring, however, it
-        is used differently. The mean is centered at 0.5 and f(0.5) = 1. Then
-        it decays as usual such that 0 and 1 reside at 4 standard deviations
-        away from the mean.
 
         Parameters
         ----------
@@ -100,9 +98,38 @@ class CoEvolutionAnalysis(NamedTuple):
             or residue pairs relative to the total.
         """
 
-        series = result[K_OCCURRENCE_SCORE]
+        freqs = np.vstack([
+            freq
+            for k,freq in self.alignment.alignment.frequencies.items()
+                if k != "-"
+        ]).T / len(self.alignment)
 
-        return np.exp(-0.5  * np.power((4*series - 2), 2)) / (0.4*np.sqrt(2*np.pi))
+        counts_normalized = np.count_nonzero(freqs > treshold, axis=1) / TOTAL_RESIDUES
+        counts_scoped = np.exp(-0.5*np.power(4*counts_normalized - 2, 2))/(0.4*np.sqrt(2*np.pi))
+        counts_df = pd.DataFrame(
+                data={
+                    K_CONFIDENCE_SCORE: counts_scoped,
+                    K_POSITION: np.arange(0, self.alignment.get_alignment_length())
+                })
+        
+        score_1 = K_CONFIDENCE_SCORE + "_1"
+        score_2 = K_CONFIDENCE_SCORE + "_2"
+
+        scores_df = pd.merge(
+            result,
+            counts_df.rename({K_POSITION: K_POSITION_1, K_CONFIDENCE_SCORE: score_1}, axis=1),
+            on=[K_POSITION_1],
+            how='left'
+        )
+
+        scores_df = pd.merge(
+            scores_df,
+            counts_df.rename({K_POSITION: K_POSITION_2, K_CONFIDENCE_SCORE: score_2}, axis=1),
+            on=[K_POSITION_2],
+            how='left'
+        )
+
+        return (scores_df[score_1] + scores_df[score_2]) / 2
         
     def score_occurence(self, result: pd.DataFrame) ->  'pd.Series[float]':
         """
@@ -119,7 +146,8 @@ class CoEvolutionAnalysis(NamedTuple):
 
         return result[K_OCCURRENCE_COUNT] / len(self.alignment)
     
-    def score_symmetry(self, result: pd.DataFrame) -> 'pd.Series[float]':
+    @classmethod
+    def score_symmetry(cls, result: pd.DataFrame) -> 'pd.Series[float]':
 
         res_1 = result[K_RESIDUE_1].to_numpy()
         pos_1 = result[K_POSITION_1].to_numpy()
@@ -132,27 +160,46 @@ class CoEvolutionAnalysis(NamedTuple):
         K_LEFT = "occurrence left"
         K_RIGHT = "occurrence right"
 
+#        compare_df = pd.merge(
+#            pd.DataFrame(
+#                data={
+#                    K_RESIDUE_1: res_1,
+#                    K_POSITION_1: pos_1,
+#                    K_RESIDUE_2: res_2,
+#                    K_POSITION_2: pos_2,
+#                    K_LEFT: occurrence
+#                }
+#            ),
+#            pd.DataFrame(
+#                data={
+#                    K_RESIDUE_1: res_2,
+#                    K_POSITION_1: pos_2,
+#                    K_RESIDUE_2: res_1,
+#                    K_POSITION_2: pos_1,
+#                    K_RIGHT: occurrence
+#                }
+#            ),
+#            how='left',
+#            on=[K_RESIDUE_1, K_POSITION_1, K_RESIDUE_2, K_POSITION_2]
+#        ).fillna({
+#            K_LEFT: 0,
+#            K_RIGHT: 0
+#        })
+        
         compare_df = pd.merge(
-            pd.DataFrame(
-                data={
-                    K_RESIDUE_1: res_1,
-                    K_POSITION_1: pos_1,
-                    K_RESIDUE_2: res_2,
-                    K_POSITION_2: pos_2,
-                    K_LEFT: occurrence
-                }
+            result.rename({K_OCCURRENCE_SCORE: K_LEFT}, axis=1),
+            result.rename(
+                {
+                    K_RESIDUE_1: K_RESIDUE_2,
+                    K_RESIDUE_2: K_RESIDUE_1,
+                    K_POSITION_1: K_POSITION_2,
+                    K_POSITION_2: K_POSITION_1,
+                    K_OCCURRENCE_SCORE: K_RIGHT
+                },
+                axis=1
             ),
-            pd.DataFrame(
-                data={
-                    K_RESIDUE_1: res_2,
-                    K_POSITION_1: pos_1,
-                    K_RESIDUE_2: res_1,
-                    K_POSITION_2: pos_2,
-                    K_RIGHT: occurrence
-                }
-            ),
-            how='left',
-            on=[K_RESIDUE_1, K_POSITION_1, K_RESIDUE_2, K_POSITION_2]
+            on=[K_RESIDUE_1, K_POSITION_1, K_RESIDUE_2, K_POSITION_2],
+            how='left'
         ).fillna({
             K_LEFT: 0,
             K_RIGHT: 0
@@ -162,11 +209,7 @@ class CoEvolutionAnalysis(NamedTuple):
         right = compare_df[K_RIGHT]
         score = float(1) - ((left - right).abs() / (left + right))
 
-        occurrence = result[K_OCCURRENCE_SCORE]
-
-        # The final score is weighted by the occurrence as a co-evolving pair
-        # That has little occurence is not interesting
-        return score * occurrence
+        return score
 
     @classmethod
     def score_exclusivity(cls, result: pd.DataFrame) -> 'pd.Series[float]':
@@ -187,7 +230,7 @@ class CoEvolutionAnalysis(NamedTuple):
             K_OCCURENCE_SINGLE_COUNT containing the counts of the occurence
             of the first residue of the pair paired with any other residue.
         """
-        return result[K_OCCURRENCE_COUNT] / result[K_OCCURENCE_SINGLE_COUNT]
+        return 2 * result[K_OCCURRENCE_COUNT] / (result[K_OCCURENCE_SINGLE_COUNT_1] + result[K_OCCURENCE_SINGLE_COUNT_2])
     
     def __get_paired_dataframe(self, positions: List[int]) -> pd.DataFrame:
         """
@@ -205,7 +248,10 @@ class CoEvolutionAnalysis(NamedTuple):
         for position in positions[1:]:
             mask |= data[K_POSITION] == position
 
-        data = pd.merge(data[mask], data, how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE])
+        data = pd.concat([
+            pd.merge(data, data[mask], how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE]),
+            pd.merge(data[mask], data, how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE])
+        ])
 
         return data[data[K_POSITION_1] != data[K_POSITION_2]]
 
@@ -222,12 +268,20 @@ class CoEvolutionAnalysis(NamedTuple):
 
         data = self.__get_paired_dataframe(positions)
         mask_gaps = (data[K_RESIDUE_1] != IGAP) & (data[K_RESIDUE_2] != IGAP)
-        mask_same = (data[K_RESIDUE_1] != data[K_RESIDUE_2])
-        mask_for_pairs = mask_gaps & mask_same
+        #mask_same = (data[K_RESIDUE_1] != data[K_RESIDUE_2])
+        mask_for_pairs = mask_gaps # & mask_same
         pair_counts = data[mask_for_pairs].groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1, K_RESIDUE_2]).count()
         pair_counts_index = pair_counts.index.to_frame(index=False)
-        single_counts = data.groupby(by=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1]).count()
-        single_counts_index = single_counts.index.to_frame(index=False)
+
+        singles = self.data.groupby(by=[K_POSITION, K_RESIDUE]).count()
+        singles_index = singles.index.to_frame(index=False)
+        singles = pd.DataFrame(
+            data = {
+                K_POSITION: singles_index[K_POSITION].to_numpy(),
+                K_RESIDUE: singles_index[K_RESIDUE].to_numpy(),
+                K_OCCURRENCE_COUNT: singles[K_SEQUENCE].to_numpy()
+            }
+        )
 
         result = pd.DataFrame(
             data = {
@@ -241,23 +295,37 @@ class CoEvolutionAnalysis(NamedTuple):
 
         result = pd.merge(
             result,
-            pd.DataFrame(
-                data = {
-                    K_POSITION_1: single_counts_index[K_POSITION_1].to_numpy(),
-                    K_POSITION_2: single_counts_index[K_POSITION_2].to_numpy(),
-                    K_RESIDUE_1: single_counts_index[K_RESIDUE_1].to_numpy(),
-                    K_OCCURENCE_SINGLE_COUNT: single_counts[K_SEQUENCE].to_numpy()
-                }
+            singles.rename(
+                {
+                    K_POSITION: K_POSITION_1,
+                    K_RESIDUE: K_RESIDUE_1,
+                    K_OCCURRENCE_COUNT: K_OCCURENCE_SINGLE_COUNT_1
+                },
+                axis=1
             ),
-            on=[K_POSITION_1, K_POSITION_2, K_RESIDUE_1],
+            on=[K_POSITION_1, K_RESIDUE_1],
             how='left'
         )
 
-        result[K_OCCURRENCE_SCORE] = self.score_occurence(result)
+        result = pd.merge(
+            result,
+            singles.rename(
+                {
+                    K_POSITION: K_POSITION_2,
+                    K_RESIDUE: K_RESIDUE_2,
+                    K_OCCURRENCE_COUNT: K_OCCURENCE_SINGLE_COUNT_2
+                },
+                axis=1
+            ),
+            on=[K_POSITION_2, K_RESIDUE_2],
+            how='left'
+        )
+
+        result[K_OCCURRENCE_SCORE] = occurrence = self.score_occurence(result)
         result[K_EXLUSIVITY_SCORE] = score_exclusivity = self.score_exclusivity(result)
-        result[K_CONFIDENCE_SCORE] = score_confidence = self.score_confidence(result)
+        result[K_CONFIDENCE_SCORE] = score_confidence = self.score_confidence(0.025, result)
         result[K_SYMMETRY_SCORE] = score_symmetry = self.score_symmetry(result)
-        result[K_SCORE_ALL] = (
+        result[K_SCORE_ALL] = occurrence * (
             + scoring.exclusivity_weight_scaled * score_exclusivity
             + scoring.confidence_weight_scaled * score_confidence
             + scoring.symmetry_weight_scaled * score_symmetry

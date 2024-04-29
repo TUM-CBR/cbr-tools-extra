@@ -1,10 +1,11 @@
 from Bio.Align import MultipleSeqAlignment
 from Bio import AlignIO
+import pandas as pd
 from typing import Any, NamedTuple, cast
-from cbrextra import testutils
 
+from cbrextra import testutils
 from cbrextra.coevolution.data import Scoring
-from cbrextra.coevolution.algorithms import CoEvolutionAnalysis, K_POSITION, K_RESIDUE, K_SEQUENCE, RESIDUE_TO_INT
+from cbrextra.coevolution.algorithms import *
 
 class CoevolutionTestSpec(NamedTuple):
     alignment_file: str
@@ -64,3 +65,23 @@ class TestCoevolution:
             )
 
             assert True
+
+    def test_score_symmetry(self):
+
+        test_cases = [
+            pd.DataFrame({
+                K_POSITION_1: [1,2,1,2],
+                K_RESIDUE_1: [1,2,1,2],
+                K_POSITION_2: [2,1,2,1],
+                K_RESIDUE_2: [2,1,3,3],
+                K_OCCURRENCE_SCORE: [0.5,0.5,0.5,0.5]
+            })
+        ]
+
+        expected = [
+            pd.Series([1,1,0,0])
+        ]
+
+        for case, exp in zip(test_cases, expected):
+            result = CoEvolutionAnalysis.score_symmetry(case)
+            assert ((result - exp) == 0).all()
