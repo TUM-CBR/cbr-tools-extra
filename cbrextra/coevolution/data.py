@@ -14,14 +14,27 @@ class Scoring(BaseModel):
     provided here.
     """
 
+    occurrence_weight: float = 1
     exclusivity_weight: float = 1
-    confidence_weight: float = 1
     symmetry_weight: float = 1
+    confidence_weight: float = 1
+    confidence_treshold: float = 0.025
+    confidence_center: float = 0.5
+    confidence_concaveness: float = 8
 
     @property
     def __combined(self):
-        return sum([self.exclusivity_weight, self.confidence_weight, self.symmetry_weight])
+        return sum([
+            self.exclusivity_weight,
+            self.confidence_weight,
+            self.symmetry_weight,
+            self.occurrence_weight
+        ])
     
+    @property
+    def occurrence_weight_scaled(self) -> float:
+        return self.occurrence_weight / self.__combined
+
     @property
     def exclusivity_weight_scaled(self) -> float:
         return self.exclusivity_weight / self.__combined

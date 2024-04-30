@@ -83,7 +83,13 @@ class CoEvolutionAnalysis(NamedTuple):
             data = msa_df
         )
     
-    def score_confidence(self, treshold: float, result: pd.DataFrame) -> 'pd.Series[float]':
+    def score_confidence(
+        self,
+        result: pd.DataFrame,
+        treshold: float = 0.025,
+        center: float = 0.5,
+        concaveness: float = 8
+    ) -> 'pd.Series[float]':
         """
         This function scores how much confidence one can have on the results of
         the analysis. The idea is that positions with too much or too little
@@ -96,6 +102,14 @@ class CoEvolutionAnalysis(NamedTuple):
         result: pd.DataFrame
             A DataFrame containing the K_OCCURRENCE_SCORE column with the occurence
             or residue pairs relative to the total.
+        treshold: The minimum occurrence a residue must have at a position in the
+            MSA to be counted as present.
+        center: When weighting the scores, the number of present residues is divided
+            by the total number of residues (20) at each position. The result is then
+            weighted with the function e^(-concaveness*(x - center)^2) to assign
+            the confidence socre at each position in the MSA. This parameter controls
+            the "center" of the funciton.
+        concaveness: This controls the concaveness of the function mentioned above.
         """
 
         freqs = np.vstack([
@@ -105,7 +119,7 @@ class CoEvolutionAnalysis(NamedTuple):
         ]).T / len(self.alignment)
 
         counts_normalized = np.count_nonzero(freqs > treshold, axis=1) / TOTAL_RESIDUES
-        counts_scoped = np.exp(-0.5*np.power(4*counts_normalized - 2, 2))/(0.4*np.sqrt(2*np.pi))
+        counts_scoped = np.exp(-concaveness*np.power(counts_normalized - center, 2))
         counts_df = pd.DataFrame(
                 data={
                     K_CONFIDENCE_SCORE: counts_scoped,
@@ -148,43 +162,15 @@ class CoEvolutionAnalysis(NamedTuple):
     
     @classmethod
     def score_symmetry(cls, result: pd.DataFrame) -> 'pd.Series[float]':
-
-        res_1 = result[K_RESIDUE_1].to_numpy()
-        pos_1 = result[K_POSITION_1].to_numpy()
-
-        res_2 = result[K_RESIDUE_2].to_numpy()
-        pos_2  = result[K_POSITION_2].to_numpy()
-
-        occurrence = result[K_OCCURRENCE_SCORE]
+        """
+        Symmetry scoring identifies residues at two positions which
+        appear in an alternating fashion. The idea is that co-evolving
+        residues will appear together, regardless of whether they appear
+        on one side or the other.
+        """
 
         K_LEFT = "occurrence left"
         K_RIGHT = "occurrence right"
-
-#        compare_df = pd.merge(
-#            pd.DataFrame(
-#                data={
-#                    K_RESIDUE_1: res_1,
-#                    K_POSITION_1: pos_1,
-#                    K_RESIDUE_2: res_2,
-#                    K_POSITION_2: pos_2,
-#                    K_LEFT: occurrence
-#                }
-#            ),
-#            pd.DataFrame(
-#                data={
-#                    K_RESIDUE_1: res_2,
-#                    K_POSITION_1: pos_2,
-#                    K_RESIDUE_2: res_1,
-#                    K_POSITION_2: pos_1,
-#                    K_RIGHT: occurrence
-#                }
-#            ),
-#            how='left',
-#            on=[K_RESIDUE_1, K_POSITION_1, K_RESIDUE_2, K_POSITION_2]
-#        ).fillna({
-#            K_LEFT: 0,
-#            K_RIGHT: 0
-#        })
         
         compare_df = pd.merge(
             result.rename({K_OCCURRENCE_SCORE: K_LEFT}, axis=1),
@@ -192,8 +178,6 @@ class CoEvolutionAnalysis(NamedTuple):
                 {
                     K_RESIDUE_1: K_RESIDUE_2,
                     K_RESIDUE_2: K_RESIDUE_1,
-                    K_POSITION_1: K_POSITION_2,
-                    K_POSITION_2: K_POSITION_1,
                     K_OCCURRENCE_SCORE: K_RIGHT
                 },
                 axis=1
@@ -205,11 +189,17 @@ class CoEvolutionAnalysis(NamedTuple):
             K_RIGHT: 0
         })
 
+        # If the same resiude appears in the two positions,
+        # it always has a score of 1. We set it to 0.5 as
+        # there is no way to know if there is symmetry or not
+        identical_mask = (result[K_RESIDUE_1] == result[K_RESIDUE_2]) * 0.5
+
         left = compare_df[K_LEFT]
         right = compare_df[K_RIGHT]
         score = float(1) - ((left - right).abs() / (left + right))
 
-        return score
+
+        return score - identical_mask
 
     @classmethod
     def score_exclusivity(cls, result: pd.DataFrame) -> 'pd.Series[float]':
@@ -248,10 +238,7 @@ class CoEvolutionAnalysis(NamedTuple):
         for position in positions[1:]:
             mask |= data[K_POSITION] == position
 
-        data = pd.concat([
-            pd.merge(data, data[mask], how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE]),
-            pd.merge(data[mask], data, how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE])
-        ])
+        data = pd.merge(data[mask], data, how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE])
 
         return data[data[K_POSITION_1] != data[K_POSITION_2]]
 
@@ -321,14 +308,20 @@ class CoEvolutionAnalysis(NamedTuple):
             how='left'
         )
 
-        result[K_OCCURRENCE_SCORE] = occurrence = self.score_occurence(result)
+        result[K_OCCURRENCE_SCORE] = score_occurrence = self.score_occurence(result)
         result[K_EXLUSIVITY_SCORE] = score_exclusivity = self.score_exclusivity(result)
-        result[K_CONFIDENCE_SCORE] = score_confidence = self.score_confidence(0.025, result)
+        result[K_CONFIDENCE_SCORE] = score_confidence = self.score_confidence(
+            result,
+            treshold=scoring.confidence_treshold,
+            center=scoring.confidence_center,
+            concaveness=scoring.confidence_concaveness
+        )
         result[K_SYMMETRY_SCORE] = score_symmetry = self.score_symmetry(result)
-        result[K_SCORE_ALL] = occurrence * (
+        result[K_SCORE_ALL] = (
             + scoring.exclusivity_weight_scaled * score_exclusivity
             + scoring.confidence_weight_scaled * score_confidence
             + scoring.symmetry_weight_scaled * score_symmetry
+            + scoring.occurrence_weight_scaled * score_occurrence
         )
 
         return result
