@@ -7,7 +7,7 @@ from Bio import AlignIO
 from docopt import docopt
 from typing import Dict
 import sys
-from typing import cast, TextIO
+from typing import TextIO
 
 from ..core.interactive import *
 from ..core.interactive.shared import OnMessageArgs, ParseMessageArgs, SerializeMessageArgs
@@ -58,7 +58,7 @@ class Coevolution(Module):
         msa = AlignIO.read(options['--input-msa'], format='fasta')
 
         run_interactive(
-            CoevolutionInteractive(cast(MultipleSeqAlignment, msa)),
+            CoevolutionInteractive(msa),
             input_stream,
             output_stream
         )

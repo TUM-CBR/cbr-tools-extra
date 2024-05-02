@@ -1,6 +1,6 @@
 from Bio.Data.IUPACData import protein_letters
 from pydantic import BaseModel
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 K_OCCURRENCE_SCORE = 'occurrence'
 K_EXLUSIVITY_SCORE = 'exclusivity'
