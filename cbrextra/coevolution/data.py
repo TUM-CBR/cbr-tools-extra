@@ -1,10 +1,20 @@
+from Bio.Data.IUPACData import protein_letters
 from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence
 
 K_OCCURRENCE_SCORE = 'occurrence'
 K_EXLUSIVITY_SCORE = 'exclusivity'
 K_CONFIDENCE_SCORE = 'confidence'
 K_SYMMETRY_SCORE = 'symmetry'
+
+TOTAL_RESIDUES = len(protein_letters)
+RESIDUE_TO_INT = {
+    res: i
+    for i,res in enumerate(protein_letters)
+}
+
+IGAP = -1
+RESIDUE_TO_INT['-'] = IGAP
 
 class Scoring(BaseModel):
     """
@@ -51,6 +61,30 @@ class Query(BaseModel):
     positions: List[int]
     max_results: int
     scoring: Scoring = Scoring()
+    included_residues: Optional[Dict[int, List[str]]] = None
+
+    def get_included(self, position: int) -> Optional[Sequence[int]]:
+
+        included = self.included_residues
+        if included is None or position not in included:
+            return None
+        
+        residues = included[position]
+
+        if len(residues) == 0:
+            raise ValueError("At least one residue must be included per position.")
+
+        def residue_to_number(residue: str) -> int:
+            residue_number = RESIDUE_TO_INT.get(residue.upper())
+            if residue_number is None:
+                raise ValueError(f"The value '{residue}' is not a known residue.")
+            
+            return residue_number
+
+        return [
+            residue_to_number(residue)
+            for residue in residues
+        ]
 
 class InteractiveRequest(BaseModel):
     query: Optional[Query]

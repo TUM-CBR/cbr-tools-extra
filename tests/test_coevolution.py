@@ -59,9 +59,11 @@ class TestCoevolution:
 
 
             scores = analysis.query_scores(
-                [position],
-                results_per_position=results_per_position,
-                scoring=Scoring()
+                Query(
+                    positions=[position],
+                    max_results=results_per_position,
+                    scoring=Scoring()
+                )
             )
 
             assert True
@@ -85,3 +87,29 @@ class TestCoevolution:
         for case, exp in zip(test_cases, expected):
             result = CoEvolutionAnalysis.score_symmetry(case)
             assert ((result - exp) == 0).all()
+
+    def test_scope_residue(self):
+
+        for spec in TEST_SPECS:
+            
+            msa = spec.open_alignment()
+            analysis = CoEvolutionAnalysis.create(msa)
+
+            position = 71
+            results_per_position = 20
+            included = ["V", "L", "A"]
+
+
+            scores = analysis.query_scores(
+                Query(
+                    positions=[position],
+                    max_results=results_per_position,
+                    scoring=Scoring(),
+                    included_residues={position: included}
+                )
+            )
+
+            for pos in scores.positions.values():
+                assert len(pos.by_position) > 0
+                for entry in pos.by_position.values():
+                    assert entry.residue_1 in included, f"The residue {entry.residue_1} was not expected in position 1"

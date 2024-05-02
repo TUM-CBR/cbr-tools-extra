@@ -33,11 +33,7 @@ class CoevolutionInteractive(InteractiveSpec[InteractiveRequest, InteractiveResp
         return args.value.model_dump()
     
     def __handle_query(self, query: Query) -> CoevolutionResults:
-        return self.__coevolution.query_scores(
-            query.positions,
-            query.max_results,
-            query.scoring
-        )
+        return self.__coevolution.query_scores(query)
 
     def on_message(self, args: OnMessageArgs[InteractiveRequest, InteractiveResponse]) -> None:
 

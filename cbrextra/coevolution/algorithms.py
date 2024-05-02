@@ -6,15 +6,6 @@ from typing import cast, Iterable, List, NamedTuple, Optional
 
 from .data import *
 
-RESIDUE_TO_INT = {
-    res: i
-    for i,res in enumerate(protein_letters)
-}
-TOTAL_RESIDUES = len(protein_letters)
-
-IGAP = -1
-RESIDUE_TO_INT['-'] = IGAP
-
 LSUFFIX = '_res1'
 RSUFFIX = '_res2'
 K_SEQUENCE = 'sequence'
@@ -222,38 +213,53 @@ class CoEvolutionAnalysis(NamedTuple):
         """
         return 2 * result[K_OCCURRENCE_COUNT] / (result[K_OCCURENCE_SINGLE_COUNT_1] + result[K_OCCURENCE_SINGLE_COUNT_2])
     
-    def __get_paired_dataframe(self, positions: List[int]) -> pd.DataFrame:
+    def __get_paired_dataframe(self, query: Query) -> pd.DataFrame:
         """
         Construct the DataFrame that contains the positions of interest paired
         with every other position in the alignment (except itself).
         """
+        positions = query.positions
+
         if len(positions) < 1:
             raise ValueError(f"{positions}: The length must be at least 1.")
         
 
         position = positions[0]
         data = self.data
-        mask = data[K_POSITION] == position
+        mask = (data[K_POSITION] == 0) | False
 
-        for position in positions[1:]:
-            mask |= data[K_POSITION] == position
+        for position in positions:
+            included = query.get_included(position)
 
-        data = pd.merge(data[mask], data, how='outer', suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE])
+            # If no inclusion list has been provided,
+            # all residues at the given position will
+            # be considered
+            if included is None:
+                mask |= data[K_POSITION] == position
+            else:
+                # We iterate over the included residues and apply an additional mask
+                # to the position mask
+                for i_residue in included:
+                    mask |= (data[K_POSITION] == position) & (data[K_RESIDUE] == i_residue)
+
+        data = pd.merge(
+            data[mask],
+            data,
+            how='outer',
+            suffixes=[LSUFFIX, RSUFFIX], on=[K_SEQUENCE]
+        )
 
         return data[data[K_POSITION_1] != data[K_POSITION_2]]
 
-    def score_positions(
-        self,
-        positions: List[int],
-        scoring: Scoring
-    ) -> pd.DataFrame:
+    def score_positions(self, query: Query) -> pd.DataFrame:
         """
         Query the co-evolution analysis using the correlated occurence of the
         residues at the positions provided with residues in any other positions
         of the sequence alignment.
         """
 
-        data = self.__get_paired_dataframe(positions)
+        scoring = query.scoring
+        data = self.__get_paired_dataframe(query)
         mask_gaps = (data[K_RESIDUE_1] != IGAP) & (data[K_RESIDUE_2] != IGAP)
         #mask_same = (data[K_RESIDUE_1] != data[K_RESIDUE_2])
         mask_for_pairs = mask_gaps # & mask_same
@@ -360,13 +366,10 @@ class CoEvolutionAnalysis(NamedTuple):
             }
         )
 
-    def query_scores(
-        self,
-        positions: List[int],
-        results_per_position: int,
-        scoring: Scoring
-    ) -> CoevolutionResults:
-        scores = self.score_positions(positions, scoring)
+    def query_scores(self, query: Query) -> CoevolutionResults:
+        positions = query.positions
+        results_per_position = query.max_results
+        scores = self.score_positions(query)
 
         coevolution_positions = {
             position : self.__to_position_result(score)
