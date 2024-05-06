@@ -9,7 +9,7 @@ from .data import DnaSeq, ParseError
 class SeqLoaderBase(ABC):
 
     @abstractmethod
-    def load(self, file_path: str) -> Optional[SeqRecord]:
+    def load(self, file_path: str) -> Optional[Sequence[SeqRecord]]:
         raise NotImplementedError()
     
 SeqLoaderItem = Union[DnaSeq, ParseError]
@@ -25,15 +25,18 @@ class SeqLoaderManager:
         self.__paths = paths
         self.__loaders = loaders
 
-    def __load_file(self, file: str) -> Optional[DnaSeq]:
+    def __load_file(self, file: str) -> Iterable[DnaSeq]:
 
         for loader in self.__loaders:
-            result = loader.load(file)
+            results = loader.load(file)
 
-            if result is not None:
-                return DnaSeq(
-                    seq=result,
-                    seq_file=file
+            if results is not None:
+                yield from (
+                    DnaSeq(
+                        seq=result,
+                        seq_file=file
+                    )
+                    for result in results
                 )
 
         # No loader exists for the given file
@@ -46,8 +49,6 @@ class SeqLoaderManager:
 
             for file in glob(pattern):
                 try:
-                    result = self.__load_file(file)
-                    if result is not None:
-                        yield result
+                    yield from self.__load_file(file)
                 except ParseError as e:
                     yield e

@@ -2,7 +2,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from enum import Enum
 from os import path
-from typing import Optional
+from typing import Optional, Sequence
 
 from .data import ParseError
 from .sequence import SeqLoaderBase
@@ -18,7 +18,7 @@ class State(Enum):
 
 class CMLoader(SeqLoaderBase):
 
-    def load(self, file_path: str) -> Optional[SeqRecord]:
+    def load(self, file_path: str) -> Optional[Sequence[SeqRecord]]:
 
         if file_path[-4:].lower() != CM5_EXT:
             return None
@@ -29,10 +29,12 @@ class CMLoader(SeqLoaderBase):
             raise ParseError("No sequence found in file!")
         
 
-        return SeqRecord(
-            seq=Seq(seq),
-            id=path.basename(file_path)[0:-4]
-        )
+        return [
+            SeqRecord(
+                seq=Seq(seq),
+                id=path.basename(file_path)[0:-4]
+            )
+        ]
 
     def read_seq(self, file_path: str) -> Optional[bytes]:
         
