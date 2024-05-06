@@ -4,7 +4,7 @@ from enum import Enum
 from os import path
 from typing import Optional, Sequence
 
-from .data import ParseError
+from .data import SequenceLoadException
 from .sequence import SeqLoaderBase
 
 DNA_BASES = [b'C', b'T', b'A', b'G']
@@ -26,7 +26,7 @@ class CMLoader(SeqLoaderBase):
         seq = self.read_seq(file_path)
 
         if seq is None:
-            raise ParseError("No sequence found in file!")
+            raise SequenceLoadException(file_path, "No DNA sequence found in file.")
         
 
         return [

@@ -4,7 +4,7 @@ from os import path
 from glob import glob
 from typing import Iterable, Optional, Sequence, Union
 
-from .data import DnaSeq, ParseError
+from .data import DnaSeq, SequenceLoadException
 
 class SeqLoaderBase(ABC):
 
@@ -12,7 +12,7 @@ class SeqLoaderBase(ABC):
     def load(self, file_path: str) -> Optional[Sequence[SeqRecord]]:
         raise NotImplementedError()
     
-SeqLoaderItem = Union[DnaSeq, ParseError]
+SeqLoaderItem = Union[DnaSeq, SequenceLoadException]
 
 class SeqLoaderManager:
 
@@ -50,5 +50,5 @@ class SeqLoaderManager:
             for file in glob(pattern):
                 try:
                     yield from self.__load_file(file)
-                except ParseError as e:
+                except SequenceLoadException as e:
                     yield e
