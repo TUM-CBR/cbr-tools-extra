@@ -2,7 +2,7 @@ from Bio import SeqIO
 from os import path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
-from typing import Any, TextIO, cast, List, NamedTuple, Sequence
+from typing import Any, Optional, TextIO, cast, List, NamedTuple, Sequence
 
 from .data import DnaSeq, SequenceLoadException
 from .models import Base, DnaSeqModel, LogEntryModel, SeqDataFolderModel
@@ -76,6 +76,12 @@ class SessionInstance:
 
         SeqIO.write(seqs, out_stream, format='fasta')
 
+    def dnaseq_by_id(self, uid: int) -> Optional[DnaSeqModel]:
+        query = select(DnaSeqModel).where(DnaSeqModel.id == uid)
+        return next(
+            (record for (record,) in self.__session.execute(query)),
+            None
+        )
 
 class SessionManager(NamedTuple):
 

@@ -21,7 +21,7 @@ class DnaSeqModel(Base):
         return DnaSeqModel(
             tax_id = dna.tax_id,
             seq_id = dna.seq.id,
-            seq = dna.seq._seq,
+            seq = dna.seq._seq._data,
             seq_file = dna.seq_file
         )
     

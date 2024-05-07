@@ -1,8 +1,10 @@
 from Bio.SeqRecord import SeqRecord
-from typing import NamedTuple, Optional
+from pydantic import BaseModel
+from typing import NamedTuple, Optional, Sequence
 
 class BlastEnv(NamedTuple):
     makeblastdb: str
+    tblastn: str
 
 class SequenceLoadException(Exception):
 
@@ -36,3 +38,20 @@ class SequencesContext(NamedTuple):
     @property
     def db_blast_name(self):
         return f"{self.db_file}.blast"
+    
+class QueryOrganism(BaseModel):
+    tax_id: int
+    name: str
+
+class QueryResult(BaseModel):
+    id: str
+    query_id: str
+    organism: Optional[QueryOrganism]
+    identity: float
+    query_sequence: str
+    hit_sequence: str
+    mid_line: str
+    file_location: Optional[str]
+
+class QueryResults(BaseModel):
+    results: Sequence[QueryResult]

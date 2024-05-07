@@ -50,6 +50,9 @@ def main():
     elif command == "coevolution":
         from cbrextra.coevolution.main import module as coevolution
         result = coevolution.main(context)
+    elif command == "sequences":
+        from cbrextra.sequences.main import module as sequences
+        result = sequences.main(context)
 
     if result is None or not result.is_success:
         print(docopt(__doc__), file=stderr)
