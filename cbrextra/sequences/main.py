@@ -4,6 +4,7 @@
 
 Environmental variables:
     CBR_MAKEBLAST_DB    The location of the 'makeblastdb' command.
+    CBR_TBLASTN         The location of the 'tblastn' command.
 """
 
 from cbrextra.core.module import Context, Result

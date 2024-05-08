@@ -125,7 +125,7 @@ def parse_blast_results(
 
                 return_value.append(
                     QueryResult(
-                        id = str(model.id),
+                        id = str(model.seq_id),
                         query_id=query_id,
                         organism=None,
                         identity=identity_count/query_len,
