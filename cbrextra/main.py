@@ -15,7 +15,6 @@ from typing import Optional
 from docopt import docopt
 
 from cbrextra.core.module import Context, Result
-from cbrextra.cascades.main import module as cascade
 from cbrextra.energy.main import module as energy
 from cbrextra.primers.main import module as primers
 
@@ -40,6 +39,7 @@ def main():
     elif command == 'primers':
         result = primers.main(context)
     elif command == 'cascades':
+        from cbrextra.cascades.main import module as cascade
         result = cascade.main(context)
     #elif command == "kinetics":
     #    from cbrextra.kinetics.main import module as kinetics
