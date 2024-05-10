@@ -1,4 +1,3 @@
-asyncio
 biopython @ git+https://github.com/netogallo/biopython.git@a95ae4130580d09107882ee6bdbc159d4803b122
 docopt
 igraph

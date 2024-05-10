@@ -47,7 +47,7 @@ class SeqLoaderManager:
         for filepath in self.__paths:
             pattern = path.join(filepath, "**", "*")
 
-            for file in glob(pattern):
+            for file in glob(pattern, recursive=True):
                 try:
                     yield from self.__load_file(file)
                 except SequenceLoadException as e:

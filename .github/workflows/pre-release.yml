@@ -26,7 +26,7 @@ jobs:
       - name: "Setup Python for Building"
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11.6'
+          python-version: '3.11.9'
           cache: 'pip' # caching pip dependencies
 
       - run: pip install -r requirements.txt
