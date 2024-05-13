@@ -4,8 +4,8 @@ from enum import Enum
 from os import path
 from typing import Optional, Sequence
 
-from .data import SequenceLoadException
-from .sequence import SeqLoaderBase
+from .data import SequenceLoadException, SeqEntry
+from .sequence import SeqLoaderBase, SeqEntryResult
 
 DNA_BASES = [b'C', b'T', b'A', b'G']
 MIN_LEGIT_LENGTH = 100
@@ -18,7 +18,7 @@ class State(Enum):
 
 class CMLoader(SeqLoaderBase):
 
-    def load(self, file_path: str) -> Optional[Sequence[SeqRecord]]:
+    def load(self, file_path: str) -> Optional[Sequence[SeqEntryResult]]:
 
         if file_path[-4:].lower() != CM5_EXT:
             return None
@@ -30,9 +30,12 @@ class CMLoader(SeqLoaderBase):
         
 
         return [
-            SeqRecord(
-                seq=Seq(seq),
-                id=path.basename(file_path)[0:-4]
+            SeqEntry(
+                seq = SeqRecord(
+                    seq=Seq(seq),
+                    id=path.basename(file_path)[0:-4]
+                ),
+                tax_id=None
             )
         ]
 

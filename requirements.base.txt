@@ -2,6 +2,7 @@ biopython @ git+https://github.com/netogallo/biopython.git@a95ae4130580d09107882
 docopt
 igraph
 open3d
+openpyxl
 pandas
 primer3-py
 pydantic

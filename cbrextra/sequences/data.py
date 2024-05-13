@@ -26,6 +26,10 @@ class SequenceLoadException(Exception):
     def message(self) -> str:
         return self.__message
 
+class SeqEntry(NamedTuple):
+    seq: SeqRecord
+    tax_id: Optional[int] = None
+
 class DnaSeq(NamedTuple):
     seq : SeqRecord
     seq_file : str
