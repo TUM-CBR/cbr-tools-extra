@@ -35,6 +35,7 @@ jobs:
             --collect-all primer3 `
             --collect-data open3d `
             --hidden-import open3d `
+            --hidden-import openpyxl `
             cbrtools.py
 
       - name: Archive Release
