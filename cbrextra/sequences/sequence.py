@@ -77,7 +77,7 @@ class SeqLoaderManager:
             for file in glob(pattern,  recursive=True):
 
                 try:
-                    with open(file, 'r') as config_stream:
+                    with open(file, 'r', encoding='utf-8') as config_stream:
                         json_config = json.load(config_stream)
                         yield ConfigEntry(
                             configuration=json_config,
