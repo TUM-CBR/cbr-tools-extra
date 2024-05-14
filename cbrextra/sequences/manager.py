@@ -2,7 +2,7 @@ from Bio import SeqIO
 from os import path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
-from typing import Any, Optional, TextIO, cast, List, NamedTuple, Sequence
+from typing import Any, Dict, Optional, TextIO, cast, NamedTuple, Sequence
 
 from .data import DnaSeq, SequenceLoadException
 from .models import Base, DnaSeqModel, LogEntryModel, SeqDataFolderModel
@@ -44,11 +44,12 @@ class SessionInstance:
 
     def update_sequences(self, *seqs: DnaSeq) -> Sequence[DnaSeqModel]:
 
-        result: List[DnaSeqModel] = []
+        result: Dict[str, DnaSeqModel] = {}
 
         for seq in seqs:
 
-            query = select(DnaSeqModel).where(DnaSeqModel.seq_id == seq.seq.id)
+            seq_id = seq.seq.id
+            query = select(DnaSeqModel).where(DnaSeqModel.seq_id == seq_id)
             existing = [item for (item,) in self.__session.execute(query)]
 
             if len(existing) > 0:
@@ -57,9 +58,10 @@ class SessionInstance:
                 model = DnaSeqModel.from_dna(seq)
                 self.__session.add(model)
 
-            result.append(model)
+            if seq_id not in result:
+                result[seq_id] = model
 
-        return result
+        return list(result.values())
     
     def add_error(self, error: SequenceLoadException) -> LogEntryModel:
         exn = LogEntryModel.from_exception(error)

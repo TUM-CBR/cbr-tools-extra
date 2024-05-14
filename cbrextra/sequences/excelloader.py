@@ -4,26 +4,30 @@ from Bio.Entrez.Parser import DictionaryElement, ListElement, StringElement
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from fnmatch import fnmatch
-from glob import glob
 from io import BytesIO, TextIOWrapper
-import json
 import openpyxl
 from openpyxl import Workbook
 from openpyxl.cell import Cell
 from os import path
 from pydantic import BaseModel, ValidationError
-from typing import cast, Iterable, List, Literal, Optional, Sequence
+import re
+from typing import NamedTuple, cast, Iterable, List, Literal, Optional, Sequence
 from zipfile import ZipFile
 
-from .data import SeqEntry
-from .sequence import SeqEntryResult, SeqLoaderBase, SequenceLoadException
+from cbrextra.sequences.sequence import ConfigContext
 
-EXCEL_SPEC_EXT = ".json"
+from .data import SeqEntry
+from .sequence import SeqEntryResult, SeqLoaderBase, SeqLoaderFactoryBase, SequenceLoadException
+
+EXCEL_EXT = ".xlsx"
+EXCEL_EXT_POS = -len(EXCEL_EXT)
 ENTREZ_RETMAX = 1000
 K_ID_LIST = "IdList"
 K_ORGANISM_NAME = "Organism_Name"
 K_ACCESSION = "Assembly_Accession"
-K_DNA_URL = f"https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/{K_ACCESSION}/download?include_annotation_type=GENOME_FASTA"
+K_DNA_URL = "https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/{" + K_ACCESSION + "}/download?include_annotation_type=GENOME_FASTA"
+
+FIX_NAMES_RE = re.compile(r"\.(\w)")
 
 class ExcelSheetSpec(BaseModel):
     name_pattern: str
@@ -36,20 +40,39 @@ class ExcelSpec(BaseModel):
     name_pattern: str
     sheets: List[ExcelSheetSpec]
 
+class ExcelSpecConfig(NamedTuple):
+    spec: ExcelSpec
+    directory: str
+
 class ExcelLoader(SeqLoaderBase):
+
+    def __init__(self, configurations: Sequence[ExcelSpecConfig]):
+        self.__configurations = configurations
+
+    def __find_spec(self, file_path: str) -> Optional[ExcelSpec]:
+
+        for configuration in self.__configurations:
+
+            file_directory = path.dirname(file_path)
+            file_name = path.basename(file_path)[0:EXCEL_EXT_POS]
+
+            if file_directory == configuration.directory \
+                and fnmatch(file_name, configuration.spec.name_pattern):
+                return configuration.spec
+            
+        return None
 
     def load(self, file_path: str) -> Optional[Sequence[SeqEntryResult]]:
 
-        if file_path[-5:].lower() != EXCEL_SPEC_EXT:
+        if file_path[EXCEL_EXT_POS:].lower() != EXCEL_EXT:
             return None
 
-        try:
-            with open(file_path, 'r') as spec_stream:
-                spec = ExcelSpec(**json.load(spec_stream))
-        except ValidationError:
+        spec = self.__find_spec(file_path)
+
+        if spec is None:
             return None
-        
-        return list(self.__load_from_spec(file_path, spec))
+
+        return list(self.__load_from_file(file_path, spec))
     
     def __download_accession_gnomes(self, accession: str) -> Sequence[SeqRecord]:
 
@@ -70,10 +93,16 @@ class ExcelLoader(SeqLoaderBase):
                 return list(
                     SeqIO.parse(TextIOWrapper(fasta, encoding='utf-8'), format='fasta')
                 )
-
     
+    def __fix_name(self, name: str) -> str:
+
+        # commas don't really mean much
+        name = name.replace(",", " ")
+        return FIX_NAMES_RE.sub(r". \g<1>", name)
+
     def __load_from_organism(self, organism: str, organism_id: Optional[str]) -> Iterable[SeqEntry]:
 
+        organism = self.__fix_name(organism)
         name = organism.split()
         organism_name = " ".join(name[0:2])
         query = f'"{organism_name}"[Organism]'
@@ -87,7 +116,7 @@ class ExcelLoader(SeqLoaderBase):
             raise ValueError("Esearch should return a dictionary")
 
         search_results = entrez.read(
-            entrez.esummary(db="gnome", id=cast(Sequence[str], search_ids[K_ID_LIST]))
+            entrez.esummary(db="genome", id=cast(Sequence[str], search_ids[K_ID_LIST]))
         )
 
         if search_results is None:
@@ -137,7 +166,10 @@ class ExcelLoader(SeqLoaderBase):
 
         assert isinstance(accession, (str, StringElement)), "Expected accession to be a string."
 
-        for sequence in self.__download_accession_gnomes(accession):
+        for i,sequence in enumerate(self.__download_accession_gnomes(accession)):
+
+            if organism_id is not None:
+                sequence.id = f"{organism_id}_{i}"
 
             # todo: add the taxid
             yield SeqEntry(
@@ -172,25 +204,35 @@ class ExcelLoader(SeqLoaderBase):
                 except Exception as e:
                     yield SequenceLoadException(
                         file=file,
-                        message=str(e)
+                        message=f"Failed to load genome for {orgn_name}: {e}"
                     )
         
     def __load_from_file(self, file_path: str, spec: ExcelSpec) -> Iterable[SeqEntryResult]:
 
         wb: Optional[Workbook] = None
         try:
-            wb = openpyxl.open(file_path, read_only=True)
+            wb = openpyxl.open(file_path) #, read_only=True)
             for sheet_spec in spec.sheets:
                 yield from self.__load_from_sheet(file_path, wb, sheet_spec)
         finally:
             wb.close() if wb is not None else None
 
+class ExcelLoaderFactory(SeqLoaderFactoryBase):
 
-    def __load_from_spec(self, file_path: str, spec: ExcelSpec) -> Iterable[SeqEntryResult]:
-        base_folder = path.dirname(file_path)
-        files_pattern = path.join(base_folder, "*.xlsx")
+    def __load_excel_specs(self, config_context: ConfigContext) -> Iterable[ExcelSpecConfig]:
 
-        for file in glob(files_pattern):
-            name = path.basename(file)[0:-5]
-            if fnmatch(name, spec.name_pattern):
-                yield from self.__load_from_file(file, spec)
+        for config in config_context.configurations:
+            try:
+                spec = ExcelSpec(**config.configuration)
+                yield ExcelSpecConfig(
+                    spec = spec,
+                    directory = path.dirname(config.path)
+                )
+            except ValidationError:
+                # todo: advise if the type is excel
+                pass
+
+    def configure(self, config: ConfigContext) -> SeqLoaderBase:
+        return ExcelLoader(
+            list(self.__load_excel_specs(config))
+        )

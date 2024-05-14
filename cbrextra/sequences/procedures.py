@@ -6,15 +6,19 @@ from typing import Any, Optional, cast, Dict, Iterable, List, Sequence, TextIO
 import warnings
 
 from .blast import Blast
-from .clonemanager import CMLoader
+from .clonemanager import CMLoaderFactory
 from .data import DnaSeq, QueryResult, QueryResults, SequencesContext, SequenceLoadException
+from .excelloader import ExcelLoaderFactory
 from .manager import SessionInstance, SessionManager
 from .sequence import SeqLoaderItem, SeqLoaderManager
 
 def load_sequences(paths: Sequence[str]) -> Iterable[SeqLoaderItem]:
     loader = SeqLoaderManager(
         paths,
-        [CMLoader()]
+        [
+            CMLoaderFactory(),
+            ExcelLoaderFactory()
+        ]
     )
 
     return loader.load_files()

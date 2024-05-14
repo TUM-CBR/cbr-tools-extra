@@ -4,8 +4,10 @@ from enum import Enum
 from os import path
 from typing import Optional, Sequence
 
+from cbrextra.sequences.sequence import ConfigContext
+
 from .data import SequenceLoadException, SeqEntry
-from .sequence import SeqLoaderBase, SeqEntryResult
+from .sequence import SeqLoaderBase, SeqLoaderFactoryBase, SeqEntryResult
 
 DNA_BASES = [b'C', b'T', b'A', b'G']
 MIN_LEGIT_LENGTH = 100
@@ -67,3 +69,8 @@ class CMLoader(SeqLoaderBase):
                     state = State.Done
 
         return None
+    
+class CMLoaderFactory(SeqLoaderFactoryBase):
+
+    def configure(self, config: ConfigContext) -> SeqLoaderBase:
+        return CMLoader()
