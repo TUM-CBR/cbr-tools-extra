@@ -1,6 +1,7 @@
 """Usage:
     cbrtools sequences scan --db-file=<db-file> [-- <scan-dir>...]
     cbrtools sequences tblastn --db-file=<db-file>
+    cbrtools errors --db-file=<db-file>
 
 Environmental variables:
     CBR_MAKEBLAST_DB    The location of the 'makeblastdb' command.
@@ -15,7 +16,7 @@ import sys
 
 from ..core.module import Module
 from .data import BlastEnv, SequencesContext
-from .procedures import run_query_tblastn, run_scan
+from .procedures import run_query_errors, run_query_tblastn, run_scan
 
 K_MAKEBLAST_DB = "CBR_MAKEBLAST_DB"
 K_TBLASTN = "CBR_TBLASTN"
@@ -62,6 +63,21 @@ class SequencesModule(Module):
         )
 
         return Result.success()
+    
+    def errors(
+        self,
+        db_file: str,
+        out_stream: TextIO = sys.stdout
+    ):
+        run_query_errors(
+            SequencesContext(
+                self.__blast_context_from_env(),
+                db_file=db_file
+            ),
+            result_stream=out_stream
+        )
+
+        return Result.success()
 
     def main(self, context: Context) -> Result:
 
@@ -71,6 +87,8 @@ class SequencesModule(Module):
             return self.scan(options['--db-file'], options.get('<scan-dir>'))
         elif options.get("tblastn"):
             return self.query(options['--db-file'])
+        elif options.get("errors"):
+            return self.errors(options['--db-file'])
         
         return Result.not_requested()
     

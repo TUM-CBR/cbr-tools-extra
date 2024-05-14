@@ -21,11 +21,11 @@ class DnaSeqModel(Base):
         return DnaSeqModel(
             tax_id = dna.tax_id,
             seq_id = dna.seq.id,
-            seq = dna.seq._seq._data,
+            seq = dna.seq._seq._data.upper(), # type: ignore
             seq_file = dna.seq_file
         )
     
-    def as_seq_record(self):
+    def as_seq_record(self) -> SeqRecord:
         return SeqRecord(
             seq = Seq(cast(str, self.seq)),
             id = str(self.id)

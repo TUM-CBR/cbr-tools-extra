@@ -59,3 +59,10 @@ class QueryResult(BaseModel):
 
 class QueryResults(BaseModel):
     results: Sequence[QueryResult]
+
+class ErrorResult(BaseModel):
+    message: str
+    offending_file: str
+
+class ErrorResults(BaseModel):
+    results: Sequence[ErrorResult]

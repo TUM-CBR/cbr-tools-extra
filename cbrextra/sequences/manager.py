@@ -2,7 +2,7 @@ from Bio import SeqIO
 from os import path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
-from typing import Any, Dict, Optional, TextIO, cast, NamedTuple, Sequence
+from typing import Any, Dict, Iterable, Optional, TextIO, cast, NamedTuple, Sequence
 
 from .data import DnaSeq, SequenceLoadException
 from .models import Base, DnaSeqModel, LogEntryModel, SeqDataFolderModel
@@ -83,6 +83,15 @@ class SessionInstance:
         return next(
             (record for (record,) in self.__session.execute(query)),
             None
+        )
+    
+    def log_entries(self) -> Iterable[LogEntryModel]:
+
+        query = select(LogEntryModel)
+
+        return (
+            log
+            for (log,) in self.__session.execute(query)
         )
 
 class SessionManager(NamedTuple):

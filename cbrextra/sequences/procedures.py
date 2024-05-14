@@ -7,7 +7,7 @@ import warnings
 
 from .blast import Blast
 from .clonemanager import CMLoaderFactory
-from .data import DnaSeq, QueryResult, QueryResults, SequencesContext, SequenceLoadException
+from .data import DnaSeq, ErrorResult, ErrorResults, QueryResult, QueryResults, SequencesContext, SequenceLoadException
 from .excelloader import ExcelLoaderFactory
 from .manager import SessionInstance, SessionManager
 from .sequence import SeqLoaderItem, SeqLoaderManager
@@ -166,4 +166,22 @@ def run_query_tblastn(context: SequencesContext, query: TextIO, result_stream: T
 
     result_stream.write(
         QueryResults(results=results).model_dump_json()
+    )
+
+def run_query_errors(context: SequencesContext, result_stream: TextIO):
+    
+    db_file = context.db_file
+    manager = SessionManager.from_file(db_file)
+
+    with manager.session() as session:
+        results = [
+            ErrorResult(
+                message = str(log.message),
+                offending_file = str(log.offending_file)
+            )
+            for log in session.log_entries()
+        ]
+
+    result_stream.write(
+        ErrorResults(results = results).model_dump_json()
     )

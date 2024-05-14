@@ -204,7 +204,7 @@ class ExcelLoader(SeqLoaderBase):
                 except Exception as e:
                     yield SequenceLoadException(
                         file=file,
-                        message=f"Failed to load genome for {orgn_name}: {e}"
+                        message=f"Failed to load genome for \"{orgn_name}\": {e}"
                     )
         
     def __load_from_file(self, file_path: str, spec: ExcelSpec) -> Iterable[SeqEntryResult]:
