@@ -1,7 +1,7 @@
 """Usage:
     cbrtools sequences scan --db-file=<db-file> [-- <scan-dir>...]
     cbrtools sequences tblastn --db-file=<db-file>
-    cbrtools errors --db-file=<db-file>
+    cbrtools sequences errors --db-file=<db-file>
 
 Environmental variables:
     CBR_MAKEBLAST_DB    The location of the 'makeblastdb' command.
