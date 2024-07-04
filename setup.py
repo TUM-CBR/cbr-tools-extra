@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import find_packages, setup
 
 setup(
     name='cbr-tools-extra',
@@ -9,8 +9,10 @@ setup(
     author='netogallo',
     author_email='connect@netowork.me',
     url='https://github.com/TUM-CBR/cbr-tools-extra',
-    packages=['cbrextra'],
     scripts=['./cbrtools'],
+    packages = find_packages(
+        include=['cbrextra*']
+    ),
     install_requires = [
        'biopython',
        'docopt',
