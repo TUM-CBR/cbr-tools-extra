@@ -51,6 +51,10 @@ buildPythonPackage {
     cppzmq
     embree3
   ];
+  preConfigure = ''
+    desktopOverrideFlag="-DOVERRIDE_DESKTOP_INSTALL_DIR=$out/share"
+    cmakeFlagsArray+=($desktopOverrideFlag)
+  '';
   cmakeFlags = [ 
     "-DOPEN3D_USE_ONEAPI_PACKAGES=OFF"
     "-DUSE_BLAS=ON" 

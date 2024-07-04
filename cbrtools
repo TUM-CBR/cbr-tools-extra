@@ -1,8 +1,5 @@
-#!/bin/sh
-# Resolve the symlink to get the actual path to the script
-SCRIPT_PATH=$(readlink -f "$0")
+#!/usr/bin/env python
+from cbrextra.main import main
 
-# Get the directory from the resolved script path
-SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
-
-$SCRIPT_DIR/.virtualenv/bin/python "$SCRIPT_DIR/cbrtools.py" "$@"
+if __name__ == "__main__":
+    main()

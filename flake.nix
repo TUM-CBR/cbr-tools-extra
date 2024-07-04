@@ -3,12 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-24.05";
-    poetry2nix = {
-      url = "github:nix-community/poetry2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    netogallo-pkgs.url = "github:netogallo/nix-packages?ref=f4bbccc569c22f4c4c186d4ba2f71b31f6f542a7";
   };
-  outputs = inputs@{ self, nixpkgs, poetry2nix, flake-parts, ... }:
+  outputs = inputs@{ self, nixpkgs, poetry2nix, flake-parts, netogallo-pkgs, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
 	"x86_64-linux"
@@ -16,41 +14,16 @@
       ];
       perSystem = { self', pkgs, system, ... }:
       let
-	poetry = poetry2nix.lib.mkPoetry2Nix { inherit pkgs; };
-	inherit (poetry) mkPoetryApplication;
-	withPythonLibs =
-	  { prev, final, pkg, libs, ... }: prev.${pkg}.overridePythonAttrs(
-	      old: {
-		buildInputs =
-		  (old.buildInputs or [])
-		  ++ map (lib: prev.${lib}) libs;
-	      }
-	  );
-	python = pkgs.python311;
+	cbr-tools-extra = import ./default.nix {
+	  inherit pkgs;
+	  netogallo-pkgs = netogallo-pkgs.outputs.legacyPackages.${system};
+	}; 
       in
       {
 	packages = {
-	  cbrtools = mkPoetryApplication {
-	    inherit python;
-	    projectDir = self;
-	    overrides = poetry.overrides.withDefaults (final: prev: {
-	      primer3-py = withPythonLibs { inherit prev final; pkg = "primer3-py"; libs = [ "setuptools" ]; };
-	      pyquaternion = prev.pyquaternion.override {
-		preferWheel = true;
-	      };
-	      open3d-cpu = python.pkgs.numpy;
-	    });
-	  };
-	  default = self'.packages.cbrtools;
-	};
-	devShells = {
-	  default = pkgs.mkShell {
-	    inputsFrom = [ self'.packages.cbrtools ];
-	  };
-	  poetry = pkgs.mkShell {
-	    packages = [ pkgs.poetry.override { python3 = pkgs.python312; } ];
-	  };
+	  inherit cbr-tools-extra;
+	  default = cbr-tools-extra;
 	};
       };
-    };
+  };
 }
