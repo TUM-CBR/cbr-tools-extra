@@ -25,7 +25,7 @@ python.pkgs.buildPythonPackage {
     pydantic
     requests
     sqlalchemy
-    (pkgs.lib.trace biopython.outPath biopython)
+    biopython
   ];
 }
 
