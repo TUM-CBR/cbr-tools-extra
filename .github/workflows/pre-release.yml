@@ -37,7 +37,7 @@ jobs:
             --collect-data open3d `
             --hidden-import open3d `
             --hidden-import openpyxl `
-            cbrtools.py
+            cbrtools
 
       - name: Archive Release
         uses: thedoctor0/zip-release@0.7.1
