@@ -247,8 +247,8 @@ class FindCavitiesContext(NamedTuple):
         edges = aligned.groupby(by=[K_BOX_ID_FROM, K_BOX_ID_TO, K_BOX_DEPTH])[K_COUNT_DUMMY].count()
         edges = edges[edges == 8]
         edges_df = edges.index.to_frame()
-        min_depth = cast(int, edges_df[K_BOX_DEPTH].min())
-        max_depth = cast(int, edges_df[K_BOX_DEPTH].max())
+        min_depth = int(edges_df[K_BOX_DEPTH].min())
+        max_depth = int(edges_df[K_BOX_DEPTH].max())
 
         depths = (corners.groupby(K_BOX_DEPTH)[K_BOX_SIZE].max() ** 3).to_dict()
 
