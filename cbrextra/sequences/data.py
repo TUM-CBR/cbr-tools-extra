@@ -1,6 +1,6 @@
 from Bio.SeqRecord import SeqRecord
 from pydantic import BaseModel
-from typing import NamedTuple, Optional, Sequence
+from typing import List, NamedTuple, Optional, Sequence
 
 class BlastEnv(NamedTuple):
     makeblastdb: str
@@ -66,3 +66,41 @@ class ErrorResult(BaseModel):
 
 class ErrorResults(BaseModel):
     results: Sequence[ErrorResult]
+
+class SearchArg(BaseModel):
+    """
+    A class that represents a search for the gnome of an organism.
+
+    Attributes
+    ----------
+    search_id
+        An identifier for this query. Search results will include this
+        identyfier in order to match them with the query in the case
+        of performing asynchronous searches.
+    tax_ids
+        A list of taxonomy ids for the organisms to consider.
+    names
+        Fuzzy names that will be used to identify the organisms by
+        name.
+    accession
+        The id of the accession where the organism's genome was
+        published.
+    """
+    search_id: str
+    tax_ids: Optional[List[int]] = None
+    names: Optional[List[str]] = None
+    accession: Optional[str] = None
+
+class SearchArgs(BaseModel):
+    searches: List[SearchArg]
+
+class SearchResultRecord(BaseModel):
+    accession_id: str
+
+class SearchResultError(BaseModel):
+    message: str
+
+class SearchResult(BaseModel):
+    search_id: str
+    records: List[SearchResultRecord]
+    errors: List[SearchResultError]

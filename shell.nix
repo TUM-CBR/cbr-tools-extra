@@ -14,12 +14,13 @@ let
   };
   python-dev = python.withPackages (p:
     import ./requirements.nix { python-pkgs = p; python-pkgs-ng = netogallo-pkgs.python-packages; }
-    ++ [ p.pytest p.ipython ]
+    ++ [ p.pytest p.ipython p.python-lsp-server p.jedi ]
   );
 in
 nixpkgs.mkShell {
   name = "cbr-tools-extra";
   packages = [
     python-dev
+    nixpkgs.pyright
   ];
 }
