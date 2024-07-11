@@ -12,12 +12,14 @@ let
   biopython = python.pkgs.biopython.overridePythonAttrs {
     src = fetchGit { url = "https://github.com/netogallo/biopython.git"; rev = "a95ae4130580d09107882ee6bdbc159d4803b122"; };
   };
+  python-dev = python.withPackages (p:
+    import ./requirements.nix { python-pkgs = p; python-pkgs-ng = netogallo-pkgs.python-packages; }
+    ++ [ p.pytest p.ipython ]
+  );
 in
-python.pkgs.buildPythonPackage {
-  pname = "cbr-tools-extra";
-  version = "0.1.0";
-  src = ./.;
-  pyproject = true;
-  dependencies = import ./requirements.nix { python-pkgs = python.pkgs; pyton-pkgs-ng: netogallo-pypkgs; };
+nixpkgs.mkShell {
+  name = "cbr-tools-extra";
+  packages = [
+    python-dev
+  ];
 }
-

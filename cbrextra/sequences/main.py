@@ -17,6 +17,7 @@ import sys
 from ..core.module import Module
 from .data import BlastEnv, SequencesContext
 from .procedures import run_query_errors, run_query_tblastn, run_scan
+from . import search
 
 K_MAKEBLAST_DB = "CBR_MAKEBLAST_DB"
 K_TBLASTN = "CBR_TBLASTN"
@@ -63,6 +64,16 @@ class SequencesModule(Module):
         )
 
         return Result.success()
+
+    def search(
+        self,
+        in_stream: TextIO = sys.stdin,
+        out_stream: TextIO = sys.stdout
+    ):
+        search.run(
+            in_stream = in_stream,
+            out_stream = out_stream
+        )
     
     def errors(
         self,
@@ -83,6 +94,8 @@ class SequencesModule(Module):
 
         options = docopt(__doc__)
 
+        if options.get("search"):
+            return self.search()
         if options.get("scan"):
             return self.scan(options['--db-file'], options.get('<scan-dir>'))
         elif options.get("tblastn"):

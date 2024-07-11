@@ -20,16 +20,21 @@
       ];
       perSystem = { self', pkgs, system, ... }:
       let
-	cbr-tools-extra = import ./default.nix {
-	  nixpkgs = pkgs;
-	  netogallo-pkgs = netogallo-pkgs.outputs.legacyPackages.${system};
-	}; 
+        callPackage = pkgs.newScope {
+          inherit callPackage;
+          nixpkgs = pkgs;
+          netogallo-pkgs = netogallo-pkgs.outputs.legacyPackages.${system};
+        };
+	      cbr-tools-extra = callPackage ./default.nix { };
       in
       {
-	packages = {
-	  inherit cbr-tools-extra;
-	  default = cbr-tools-extra;
-	};
+	      packages = {
+	        inherit cbr-tools-extra;
+	        default = cbr-tools-extra;
+	      };
+        devShells = {
+          default = callPackage ./shell.nix { };
+        };
       };
   };
 }
