@@ -22,6 +22,7 @@ setup(
        'pandas',
        'primer3-py',
        'pydantic',
+       'python-dateutil',
        'requests',
        'SQLAlchemy'
     ],

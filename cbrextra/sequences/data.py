@@ -2,6 +2,8 @@ from Bio.SeqRecord import SeqRecord
 from pydantic import BaseModel
 from typing import List, NamedTuple, Optional, Sequence
 
+from ..ncbi.openapi import V2reportsAssemblyDataReport, V2reportsOrganism
+
 class BlastEnv(NamedTuple):
     makeblastdb: str
     tblastn: str
@@ -94,8 +96,47 @@ class SearchArg(BaseModel):
 class SearchArgs(BaseModel):
     searches: List[SearchArg]
 
+class Organism(BaseModel):
+    name: str
+    taxid: int
+
+    @classmethod
+    def from_report_organism(
+        cls,
+        organism: V2reportsOrganism
+    ) -> 'Optional[Organism]':
+
+        name = organism.organism_name
+        taxid = organism.tax_id
+
+        if name is None or taxid is None:
+            return None
+
+        return Organism(name=name, taxid=taxid)
+
 class SearchResultRecord(BaseModel):
-    accession_id: str
+    accession: str
+    organism: Organism
+
+    @classmethod
+    def from_assembly_data_report(
+        cls,
+        record: V2reportsAssemblyDataReport
+    ) -> 'Optional[SearchResultRecord]':
+
+        if record.organism is None:
+            return None
+
+        organism = Organism.from_report_organism(record.organism)
+        accession = record.accession
+
+        if accession is None or organism is None:
+            return None
+
+        return SearchResultRecord(
+            accession=accession,
+            organism=organism
+        )
 
 class SearchResultError(BaseModel):
     message: str
@@ -104,3 +145,9 @@ class SearchResult(BaseModel):
     search_id: str
     records: List[SearchResultRecord]
     errors: List[SearchResultError]
+
+class InteractiveInput(BaseModel):
+    search: Optional[SearchArgs]
+
+class InteractiveOutput(BaseModel):
+    search_result: Optional[SearchResult]

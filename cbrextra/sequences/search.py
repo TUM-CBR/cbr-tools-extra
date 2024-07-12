@@ -2,17 +2,22 @@ from Bio import Entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement 
 from typing import Iterable, List, Optional, Union
 
-from .data import SearchArg, SearchArgs, SearchResult
+from ..ncbi.openapi import GeneApi, GenomeApi
+
+from .data import SearchArg, SearchArgs, SearchResult, SearchResultRecord
 
 K_SCIENTIFIC_NAME = "ScientificName"
 K_TAX_DB = "taxonomy"
 K_GENOME_DB = ""
+K_ID_LIST = "IdList"
 
 class SearchResultBuilder:
 
     def __init__(self, search_id):
         self.__search_id = search_id
         self.__errors = []
+        self.__results = []
+
     def add_errors(
         self,
         *values: Union[str, Exception]
@@ -22,56 +27,118 @@ class SearchResultBuilder:
             for value in values
         ]
 
+    def add_results(
+        self,
+        *values: SearchResultRecord
+    ):
+        self.__results += values
+
     def build(self) -> SearchResult:
         return SearchResult(
             search_id = self.__search_id,
-            errors = self.__errors
+            errors = self.__errors,
+            records = self.__results
         )
+
 class Search:
 
-    def get_names(
+    def __init__(self):
+        self.__genome_api = GenomeApi()
+
+    def get_taxids_from_names(
         self,
         builder: SearchResultBuilder,
-        tax_ids: List[int]
-    ) -> List[str]:
+        names: List[str]
+    ) -> List[int]:
 
-        if len(tax_ids) == 0:
+        if len(names) == 0:
             return []
 
-        result = Entrez.read(Entrez.esummary(db=K_TAX_DB, id=tax_ids))
+        term = " OR ".join(f'"{name}"[ORGN]' for name in names if len(name) > 0)
+        retmax = 10
+        result = Entrez.read(Entrez.esearch(db=K_TAX_DB, term = term, retmax = retmax))
     
-        if not isinstance(result, ListElement):
+        if not isinstance(result, DictionaryElement):
             builder.add_errors(f"Querying taxids failed: {str(result)}")
             return []
 
+        taxids = result.get(K_ID_LIST)
+
+        if not isinstance(taxids, ListElement):
+            builder.add_errors(f"Querying taxids failed: {str(result)}")
+            return []
+
+        return taxids
+
+    def get_records_from_taxids(
+        self,
+        builder: SearchResultBuilder,
+        taxids: List[int]
+    ) -> List[SearchResultRecord]:
+        results = self.__genome_api.genome_dataset_reports_by_taxon(taxons=[str(taxid) for taxid in taxids]) 
+
+        if results.reports is None:
+            builder.add_errors(f"Failed to query genome dataset reports: {results}")
+            return []
+
         return [
-            org[K_SCIENTIFIC_NAME]
-            for org in result
+            report
+            for result in results.reports
+            for report in [SearchResultRecord.from_assembly_data_report(result)]
+                if report is not None
+        ]
+
+    def get_records_from_accessions(
+        self,
+        builder: SearchResultBuilder,
+        accessions: List[str]
+    ) -> List[SearchResultRecord]:
+
+        results = self.__genome_api.genome_dataset_report(accessions=accessions)
+
+        if results.reports is None:
+            builder.add_errors(f"Failed to query genome dataset reports: {results}")
+            return []
+
+        return [
+            report
+            for result in results.reports
+            for report in [SearchResultRecord.from_assembly_data_report(result)]
+                if report is not None
         ]
 
     def run_single(
         self,
+        builder: SearchResultBuilder,
         arg: SearchArg
-    ):
+    ): 
 
-        builder = SearchResultBuilder(arg.search_id)
-        organisms = list(arg.names or [])
-        if arg.tax_ids is not None:
-            organisms += self.get_names(builder, arg.tax_ids) 
+        taxids = arg.tax_ids or []
 
-        query = \
-            " OR ".join(f"\"{organism}\"[Organism]" for organism in organisms)
+        if arg.names is not None:
+            taxids += self.get_taxids_from_names(builder, arg.names)
+
+        records: List[SearchResultRecord] = []
+        if len(taxids) > 0:
+            records += self.get_records_from_taxids(builder, taxids)
 
         if arg.accession is not None:
-            query += " OR " + " OR ".join(f"\"{arg.accession}\"[{field}]" for field in ["PRJA", "AACC", "ACCN"])
-        
-        result_ids = Entrez.read(Entrez.esearch(db=K_GENOME_DB, term=query))
-        
-        if not isinstance(result_ids, DictionaryElement):
-            builder.add_errors(f"Got unexpected result while quering the ids: {str(result_ids)}")
+            records += self.get_records_from_accessions(builder, accessions=[arg.accession])
+
+        builder.add_results(*records)
 
     def run(
         self,
         args: SearchArgs
     ) -> Iterable[SearchResult]:
-        return args
+
+        for arg in args.searches:
+            builder = SearchResultBuilder(arg.search_id)
+            try:
+                self.run_single(builder, arg)
+            except Exception as e:
+                builder.add_errors(e)
+            finally:
+                yield builder.build()
+
+
