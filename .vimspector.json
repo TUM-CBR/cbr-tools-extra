@@ -1,0 +1,25 @@
+{
+  "configurations": {
+    "run": {
+      "adapter": "debugpy",
+      "breakpoints": {
+        "exception": {
+          "all": "N",
+          "uncaught": "N"
+        }
+      },
+      "configuration": {
+        "request": "launch",
+        "protocol": "auto",
+        "stopOnEntry": true,
+        "console": "integratedTerminal",
+        "module": "pytest",
+        "python": "/nix/store/j329c0xhmqd9s29f0y7q1cgjzgyj8my4-python3-3.11.9-env/bin/python",
+        "args": [
+          "${workspaceRoot}/tests/test_sequences.py"
+        ],
+        "cwd": "${workspaceRoot}"
+      }
+    }
+  }
+}

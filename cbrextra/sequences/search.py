@@ -1,8 +1,8 @@
 from Bio import Entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement 
-from typing import Iterable, List, Optional, Union
+from typing import Iterable, List, Union
 
-from ..ncbi.openapi import GeneApi, GenomeApi
+from ..ncbi.openapi import GenomeApi
 
 from .data import SearchArg, SearchArgs, SearchResult, SearchResultRecord
 
@@ -16,7 +16,7 @@ class SearchResultBuilder:
     def __init__(self, search_id):
         self.__search_id = search_id
         self.__errors = []
-        self.__results = []
+        self.__results = {}
 
     def add_errors(
         self,
@@ -31,13 +31,14 @@ class SearchResultBuilder:
         self,
         *values: SearchResultRecord
     ):
-        self.__results += values
+        for value in values:
+            self.__results[value.accession] = value
 
     def build(self) -> SearchResult:
         return SearchResult(
             search_id = self.__search_id,
             errors = self.__errors,
-            records = self.__results
+            records = list(self.__results.values())
         )
 
 class Search:

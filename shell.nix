@@ -14,7 +14,7 @@ let
   };
   python-dev = python.withPackages (p:
     import ./requirements.nix { python-pkgs = p; python-pkgs-ng = netogallo-pkgs.python-packages; }
-    ++ [ p.pytest p.ipython p.python-lsp-server p.jedi p.pyflakes p.jedi-language-server ]
+    ++ [ p.pytest p.ipython p.python-lsp-server p.jedi p.pyflakes p.jedi-language-server p.debugpy ]
   );
 in
 nixpkgs.mkShell {
