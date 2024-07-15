@@ -18,6 +18,6 @@ python.pkgs.buildPythonPackage {
   version = "0.1.0";
   src = ./.;
   pyproject = true;
-  dependencies = import ./requirements.nix { python-pkgs = python.pkgs; pyton-pkgs-ng: netogallo-pypkgs; };
+  dependencies = import ./requirements.nix { python-pkgs = python.pkgs; pyton-pkgs-ng = netogallo-pypkgs; };
 }
 
