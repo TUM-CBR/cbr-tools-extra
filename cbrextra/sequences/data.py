@@ -146,8 +146,14 @@ class SearchResult(BaseModel):
     records: List[SearchResultRecord]
     errors: List[SearchResultError]
 
+class SaveSearchResult(BaseModel):
+    errors: Optional[List[str]] = None
+
 class InteractiveInput(BaseModel):
     search: Optional[SearchArgs]
+    save_search: Optional[List[SearchResultRecord]]
 
 class InteractiveOutput(BaseModel):
-    search_result: Optional[SearchResult]
+    search_result: Optional[SearchResult] = None
+    save_search_result: Optional[SaveSearchResult] = None
+

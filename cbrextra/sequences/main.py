@@ -2,7 +2,7 @@
     cbrtools sequences scan --db-file=<db-file> [-- <scan-dir>...]
     cbrtools sequences tblastn --db-file=<db-file>
     cbrtools sequences errors --db-file=<db-file>
-    cbrtools sequences interactive [--email=<email>] [--api-key=<api_key>]
+    cbrtools sequences interactive --db-file=<db-file> [--email=<email>] [--api-key=<api_key>]
 
 Environmental variables:
     CBR_MAKEBLAST_DB    The location of the 'makeblastdb' command.
@@ -11,23 +11,28 @@ Environmental variables:
 
 from Bio import Entrez
 from docopt import docopt
-from typing import Optional, Sequence, TextIO, Union
+from typing import Any, Dict, Optional, Sequence, TextIO, Union
 from os import environ
 import sys
 
-from ..core.interactive import InteractiveSpec, OnMessageArgs
+from ..core.interactive import InteractiveSpec, OnMessageArgs, ParseMessageArgs, run_interactive, SerializeMessageArgs
 from ..core.module import Context, Module, Result
-from .data import BlastEnv, InteractiveInput, InteractiveOutput, SequencesContext
+from .data import BlastEnv, InteractiveInput, InteractiveOutput, SaveSearchResult, SequencesContext
 from .procedures import run_query_errors, run_query_tblastn, run_scan
 from .search import Search, SearchArgs
+from .save import Save
 
 K_MAKEBLAST_DB = "CBR_MAKEBLAST_DB"
 K_TBLASTN = "CBR_TBLASTN"
 
 class SequencesInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput]):
 
-    def __init__(self):
+    def __init__(
+        self,
+        db_file: str
+    ):
         self.__ncbi_search = Search()
+        self.__save = Save(db_file=db_file)
 
     def __search(self, search_args: SearchArgs):
         return self.__ncbi_search.run(search_args)
@@ -46,7 +51,24 @@ class SequencesInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput])
                 )
                 return
 
+        elif message.save_search is not None:
+            errors = self.__save.save_search_results(message.save_search)
+            args.send(
+                InteractiveOutput(
+                    save_search_result=SaveSearchResult(
+                        errors=[str(error) for error in errors]
+                    )
+                )
+            )
+            return
+
         raise ValueError("Message does not contain a valid command")
+
+    def parse_message(self, args: ParseMessageArgs[InteractiveInput, InteractiveOutput]) -> InteractiveInput:
+        return InteractiveInput(**args.payload)
+    
+    def serialize_message(self, args: SerializeMessageArgs[InteractiveInput, InteractiveOutput]) -> Dict[Any, Any]:
+        return args.value.model_dump()
 
 class SequencesModule(Module):
 
@@ -108,11 +130,10 @@ class SequencesModule(Module):
     ) -> Result:
 
         self.setup_entrez(email, api_key)
-        search.run(
-            email,
-            api_key,
-            in_stream = in_stream,
-            out_stream = out_stream
+        run_interactive(
+            SequencesInteractive(),
+            in_stream,
+            out_stream
         )
 
         return Result.success()

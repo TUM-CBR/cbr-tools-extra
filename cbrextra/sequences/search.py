@@ -1,6 +1,6 @@
 from Bio import Entrez
 from Bio.Entrez.Parser import DictionaryElement, ListElement 
-from typing import Iterable, List, Union
+from typing import Iterable, List, Optional, Union
 
 from ..ncbi.openapi import GenomeApi
 
@@ -43,7 +43,11 @@ class SearchResultBuilder:
 
 class Search:
 
-    def __init__(self):
+    def __init__(
+        self,
+        email: Optional[str] = None,
+        api_key: Optional[str] = None
+    ):
         self.__genome_api = GenomeApi()
 
     def get_taxids_from_names(

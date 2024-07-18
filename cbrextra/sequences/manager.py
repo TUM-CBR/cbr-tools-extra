@@ -2,10 +2,10 @@ from Bio import SeqIO
 from os import path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
-from typing import Any, Dict, Iterable, Optional, TextIO, cast, NamedTuple, Sequence
+from typing import Any, Dict, Iterable, List, Optional, TextIO, cast, NamedTuple, Sequence
 
-from .data import DnaSeq, SequenceLoadException
-from .models import Base, DnaSeqModel, LogEntryModel, SeqDataFolderModel
+from .data import DnaSeq, SearchResultRecord, SequenceLoadException
+from .models import AccessionModel, Base, DnaSeqModel, LogEntryModel, OrganismModel, SeqDataFolderModel
 
 class SessionInstance:
 
@@ -93,6 +93,46 @@ class SessionInstance:
             log
             for (log,) in self.__session.execute(query)
         )
+
+    def get_or_create_organism(self, taxid: int, name: str) -> OrganismModel:
+        result = self.__session.query(OrganismModel) \
+                .where(OrganismModel.taxid == taxid) \
+                .first()
+
+        if result is not None:
+            return result
+
+        organism = OrganismModel(taxid=taxid, name=name)
+        self.__session.add(organism)
+        return organism
+
+    def save_search_results(
+        self,
+        records: Iterable[SearchResultRecord]
+    ) -> List[Exception]:
+
+        errors = []
+        for record in records:
+            accession = self.__session.query(AccessionModel) \
+                .where(AccessionModel.accession == record.accession) \
+                .first()
+
+            if accession is not None:
+                errors.append(Exception(f"Accession {record.accession} already exists"))
+                continue
+
+            organism = self.get_or_create_organism(
+                record.organism.taxid,
+                record.organism.name
+            )
+
+            accession = AccessionModel(
+                accession=record.accession,
+                organism=organism
+            )
+            self.__session.add(accession)
+
+        return errors
 
 class SessionManager(NamedTuple):
 

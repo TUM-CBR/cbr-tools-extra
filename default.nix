@@ -9,9 +9,6 @@
 let
   python = nixpkgs.python3;
   netogallo-pypkgs = netogallo-pkgs.python-packages; 
-  biopython = python.pkgs.biopython.overridePythonAttrs {
-    src = fetchGit { url = "https://github.com/netogallo/biopython.git"; rev = "a95ae4130580d09107882ee6bdbc159d4803b122"; };
-  };
 in
 python.pkgs.buildPythonPackage {
   pname = "cbr-tools-extra";
