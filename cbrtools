@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/nix/store/2rmizha3cawgkr9fzgm4hhlq4xcz6gal-python3-3.11.9-env/bin/python
 from cbrextra.main import main
 
 if __name__ == "__main__":

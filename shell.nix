@@ -1,5 +1,9 @@
 {
-  nixpkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/refs/tags/24.05.tar.gz") { },
+  fetchzip ? (import nixpkgs {}).fetchzip,
+  nixpkgs ? import (fetchzip {
+      url = "https://github.com/NixOS/nixpkgs/archive/refs/tags/24.05.tar.gz";
+      hash = "sha256-vboIEwIQojofItm2xGCdZCzW96U85l9nDW3ifMuAIdM="; }
+    ) {},
   netogallo-pkgs ? import (
     fetchGit {
       url = "https://github.com/netogallo/nix-packages.git";

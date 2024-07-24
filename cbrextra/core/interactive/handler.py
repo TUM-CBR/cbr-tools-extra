@@ -1,6 +1,7 @@
 import json
 from pydantic import ValidationError
 import sys
+import traceback
 from typing import TextIO
 
 from ..atomic import AtomicCounter
@@ -87,7 +88,7 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
         except Exception as exn:
             self.__write_error(
                 ErrorCodes.UnknownError,
-                exn,
+                traceback.format_exc(),
                 uids = [input.uid]
             )
 
@@ -102,7 +103,7 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
             if input.payload is None:
                 self.__write_error(
                     ErrorCodes.UnknownInputType,
-                    ValueError("Payload cannot be None"),
+                    "Payload cannot be None",
                     uids=[input.uid]
                 )
             else:
@@ -113,7 +114,7 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
         else:
             self.__write_error(
                 ErrorCodes.UnknownInputType,
-                ValueError("Unknown message input type"),
+                "Unknown message input type",
                 uids=[input.uid]
             )
 
@@ -122,7 +123,7 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
     def __write_error(
         self,
         error_code: ErrorCodes,
-        exn: Exception,
+        message: str,
         payload: Optional[str] = None,
         uids: Optional[List[int]] = None 
     ):
@@ -132,7 +133,7 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
                 input_uids = uids or [],
                 error_code = error_code,
                 payload = payload,
-                message = str(exn)
+                message = message
             ),
             value = None
         )
@@ -154,13 +155,13 @@ class InteractiveHandler(Generic[TMessageIn, TMessageOut]):
             except json.JSONDecodeError as exn:
                 self.__write_error(
                     ErrorCodes.JsonDecodeError,
-                    exn,
+                    traceback.format_exc(),
                     payload,
                 )
             except ValidationError as exn:
                 self.__write_error(
                     ErrorCodes.PydanticValidationError,
-                    exn,
+                    traceback.format_exc(),
                     payload,
                 )
             

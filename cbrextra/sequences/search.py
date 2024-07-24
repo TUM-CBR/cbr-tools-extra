@@ -4,7 +4,7 @@ from typing import Iterable, List, Optional, Union
 
 from ..ncbi.openapi import GenomeApi
 
-from .data import SearchArg, SearchArgs, SearchResult, SearchResultRecord
+from .data import SearchArg, SearchArgs, SearchResult, SearchResultError, SearchResultRecord
 
 K_SCIENTIFIC_NAME = "ScientificName"
 K_TAX_DB = "taxonomy"
@@ -23,7 +23,7 @@ class SearchResultBuilder:
         *values: Union[str, Exception]
     ):
         self.__errors += [
-            str(value)
+            SearchResultError(message = str(value))
             for value in values
         ]
 
@@ -80,10 +80,11 @@ class Search:
         builder: SearchResultBuilder,
         taxids: List[int]
     ) -> List[SearchResultRecord]:
+
         results = self.__genome_api.genome_dataset_reports_by_taxon(taxons=[str(taxid) for taxid in taxids]) 
 
         if results.reports is None:
-            builder.add_errors(f"Failed to query genome dataset reports: {results}")
+            builder.add_errors(f"Failed to query genome dataset reports:\n result:{results}\n taxids:{taxids}")
             return []
 
         return [
@@ -102,7 +103,7 @@ class Search:
         results = self.__genome_api.genome_dataset_report(accessions=accessions)
 
         if results.reports is None:
-            builder.add_errors(f"Failed to query genome dataset reports: {results}")
+            builder.add_errors(f"Failed to query genome dataset reports:\n reports:{results}\n accessions:{accessions}")
             return []
 
         return [
@@ -121,7 +122,7 @@ class Search:
         taxids = arg.tax_ids or []
 
         if arg.names is not None:
-            taxids += self.get_taxids_from_names(builder, arg.names)
+            taxids += [int(tid) for tid in self.get_taxids_from_names(builder, arg.names)]
 
         records: List[SearchResultRecord] = []
         if len(taxids) > 0:
@@ -142,7 +143,8 @@ class Search:
             try:
                 self.run_single(builder, arg)
             except Exception as e:
-                builder.add_errors(e)
+                import traceback
+                builder.add_errors(traceback.format_exc())
             finally:
                 yield builder.build()
 

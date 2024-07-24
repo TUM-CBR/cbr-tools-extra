@@ -150,8 +150,8 @@ class SaveSearchResult(BaseModel):
     errors: Optional[List[str]] = None
 
 class InteractiveInput(BaseModel):
-    search: Optional[SearchArgs]
-    save_search: Optional[List[SearchResultRecord]]
+    search: Optional[SearchArgs] = None
+    save_search: Optional[List[SearchResultRecord]] = None
 
 class InteractiveOutput(BaseModel):
     search_result: Optional[SearchResult] = None

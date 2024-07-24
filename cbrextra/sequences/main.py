@@ -49,7 +49,6 @@ class SequencesInteractive(InteractiveSpec[InteractiveInput, InteractiveOutput])
                         search_result=result
                     )
                 )
-                return
 
         elif message.save_search is not None:
             errors = self.__save.save_search_results(message.save_search)
@@ -123,6 +122,7 @@ class SequencesModule(Module):
 
     def interactive_mode(
         self,
+        db_file: str,
         email: Optional[str],
         api_key: Optional[str],
         in_stream: TextIO = sys.stdin,
@@ -131,7 +131,7 @@ class SequencesModule(Module):
 
         self.setup_entrez(email, api_key)
         run_interactive(
-            SequencesInteractive(),
+            SequencesInteractive(db_file),
             in_stream,
             out_stream
         )
@@ -159,6 +159,7 @@ class SequencesModule(Module):
 
         if options.get("interactive"):
             return self.interactive_mode(
+                db_file=options['--db-file'],
                 email=options.get("--email"),
                 api_key=options.get("--api-key")
             )

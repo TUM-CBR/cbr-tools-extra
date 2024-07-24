@@ -73,9 +73,9 @@ class TestCoevolution:
         test_cases = [
             pd.DataFrame({
                 K_POSITION_1: [1,2,1,2],
-                K_RESIDUE_1: [1,2,1,2],
+                K_RESIDUE_1:  [1,2,1,2],
                 K_POSITION_2: [2,1,2,1],
-                K_RESIDUE_2: [2,1,3,3],
+                K_RESIDUE_2:  [2,1,3,3],
                 K_OCCURRENCE_SCORE: [0.5,0.5,0.5,0.5]
             })
         ]

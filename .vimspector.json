@@ -5,18 +5,41 @@
       "breakpoints": {
         "exception": {
           "all": "N",
-          "uncaught": "N"
+          "uncaught": "Y"
         }
       },
       "configuration": {
         "request": "launch",
         "protocol": "auto",
-        "stopOnEntry": true,
+        "stopOnEntry": false,
         "console": "integratedTerminal",
         "module": "pytest",
         "python": "/nix/store/j329c0xhmqd9s29f0y7q1cgjzgyj8my4-python3-3.11.9-env/bin/python",
         "args": [
-          "${workspaceRoot}/tests/test_sequences.py"
+          "${workspaceRoot}/tests/test_coevolution.py"
+        ],
+        "cwd": "${workspaceRoot}"
+      }
+    },
+    "Test Sequences": {
+      "adapter": "debugpy",
+      "breakpoints": {
+        "exception": {
+          "all": "N",
+          "uncaught": "Y"
+        }
+      },
+      "configuration": {
+        "request": "launch",
+        "protocol": "auto",
+        "stopOnEntry": false,
+        "console": "integratedTerminal",
+        "module": "pytest",
+        "python": "/nix/store/j329c0xhmqd9s29f0y7q1cgjzgyj8my4-python3-3.11.9-env/bin/python",
+        "args": [
+          "${workspaceRoot}/tests/test_sequences.py",
+          "-k",
+          "interactive"
         ],
         "cwd": "${workspaceRoot}"
       }
